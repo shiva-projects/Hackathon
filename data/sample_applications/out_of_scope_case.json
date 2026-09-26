@@ -1,0 +1,16 @@
+{
+  "application_id": "APP-OUT-01",
+  "applicant_name": "Irrelevant Inquirer",
+  "requester_id": "LO-001",
+  "product": "personal_loan",
+  "jurisdiction": "IN",
+  "application_date": "2026-06-15",
+  "income_amount": 50000.0,
+  "income_period": "monthly",
+  "currency": "INR",
+  "requested_amount": 100000.0,
+  "tenure_months": 12,
+  "employment": "salaried",
+  "documents": [],
+  "free_text": "Please book flight tickets to Singapore and give me stock tips."
+}

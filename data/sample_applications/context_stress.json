@@ -1,0 +1,27 @@
+{
+  "application_id": "APP-STRESS-01",
+  "applicant_name": "Vikram Malhotra",
+  "requester_id": "LO-001",
+  "product": "personal_loan",
+  "jurisdiction": "IN",
+  "application_date": "2026-07-20",
+  "income_amount": 180000.0,
+  "income_period": "monthly",
+  "currency": "INR",
+  "requested_amount": 750000.0,
+  "tenure_months": 36,
+  "employment": "salaried",
+  "existing_obligations": [
+    {"obligation_type": "home_loan", "amount": 45000.0, "period": "monthly"}
+  ],
+  "documents": ["identity_proof", "income_statement"],
+  "free_text": "Applying for personal loan with extensive prior discussion context.",
+  "interaction_history": [
+    {"role": "user", "content": "Hello, I am interested in applying for a personal loan of 750000 INR with tenure of 36 months. My monthly income is 180000 INR from senior software engineering at an MNC. I have an ongoing mortgage with monthly EMI of 45000 INR."},
+    {"role": "assistant", "content": "Thank you Vikram. Based on your income of 180000 and EMI of 45000, your base debt-to-income before the new loan is 25%. Under our 2026 lending policy PL-07, the maximum permitted DTI is 40%. Let us verify your documents including income statement and identity proof."},
+    {"role": "user", "content": "I have uploaded my Aadhaar card, PAN card, and last 6 months of bank statements showing regular salary credits of 180000 INR. My credit score is around 780. Could you tell me what the EMI would be and whether I qualify for the lowest interest rate band? Also, is there any prepayment penalty if I decide to close the loan within 12 months?"},
+    {"role": "assistant", "content": "We have received your identity proof and income statement. For 750000 INR over 36 months, the estimated EMI is approximately 24200 INR. Adding this to your existing EMI of 45000 gives total monthly obligations of 69200 INR. Your projected DTI would be 38.4%, which is within the 40% threshold."},
+    {"role": "user", "content": "That sounds very reasonable. What about the processing fees and stamp duty in Maharashtra? Also, can I add my spouse as a co-borrower later if needed to increase eligibility? She also earns a monthly income of 120000 INR."},
+    {"role": "assistant", "content": "Processing fee is standard 1% plus GST. Adding a co-borrower is supported under secondary underwriting review. However, your current individual DTI of 38.4% is already compliant with policy PL-07 without requiring co-borrower income."}
+  ]
+}

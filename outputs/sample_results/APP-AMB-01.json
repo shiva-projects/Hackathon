@@ -1,0 +1,19 @@
+{
+  "application_id": "APP-AMB-01",
+  "session_id": "SESSION-APP-AMB-01-1790413662",
+  "run_id": "RUN-20260926143742",
+  "request_status": "REFUSED",
+  "refusal_reason": "AUTHORIZATION_DENIED",
+  "decision_status": "N/A",
+  "unable_reason": null,
+  "ai_recommendation": null,
+  "human_review_required": false,
+  "final_decision": null,
+  "review_id": null,
+  "affordability": {},
+  "risk_flags": [],
+  "policy_selected": {},
+  "policy_citations": [],
+  "rationale": "Request refused: AUTHORIZATION_DENIED.",
+  "timestamp": "2026-09-26T09:07:42.832650+00:00"
+}

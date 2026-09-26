@@ -1,0 +1,19 @@
+{
+  "application_id": "APP-002",
+  "applicant_name": "Priya Verma",
+  "requester_id": "LO-002",
+  "product": "personal_loan",
+  "jurisdiction": "IN",
+  "application_date": "2026-06-15",
+  "income_amount": 100000.0,
+  "income_period": "monthly",
+  "currency": "INR",
+  "requested_amount": 500000.0,
+  "tenure_months": 36,
+  "employment": "salaried",
+  "existing_obligations": [
+    {"obligation_type": "personal_loan_existing", "amount": 52000.0, "period": "monthly"}
+  ],
+  "documents": ["identity_proof", "income_statement"],
+  "free_text": "Requesting consolidation loan to lower monthly outgo."
+}

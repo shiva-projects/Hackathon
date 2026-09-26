@@ -1,0 +1,7 @@
+{
+  "model": "gemini-2.5-flash",
+  "input_price_per_million": 0.075,
+  "output_price_per_million": 0.30,
+  "pricing_source": "Google Cloud Gemini API Official Pricing (2026)",
+  "pricing_checked_at": "2026-09-25"
+}

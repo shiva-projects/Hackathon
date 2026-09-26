@@ -1,0 +1,10 @@
+{
+  "case_id": "FAIL-001",
+  "description": "Selector matched expired v1 policy instead of current v2 policy due to off-by-one effective window check",
+  "application_id": "APP-011",
+  "policy_version": "v1.0",
+  "pre_fix_behavior": "policy_selected.version == 'v1.0' (expired 2025)",
+  "expected_failure": "Outdated 2025 DTI thresholds and missing 2026 rules applied to 2026 application",
+  "expected_fixed_behavior": "policy_selected.version == 'v2.0' (current 2026)",
+  "injection": null
+}

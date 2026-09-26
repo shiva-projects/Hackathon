@@ -1,0 +1,140 @@
+{
+  "generated_at": "2026-09-26T14:35:00Z",
+  "artifacts": {
+    "src/graph.py": {
+      "exists": true,
+      "size_bytes": 7617,
+      "sha256": "ea819b71cdf50f371a3c585cb5c67e430f0d32eab6e8ef50dd7929fc3196f795"
+    },
+    "src/state.py": {
+      "exists": true,
+      "size_bytes": 6483,
+      "sha256": "4f626f2a3fb6442e88927c73cab13654db79d5149a8ca4055c3573204babf25f"
+    },
+    "mcp_server/server.py": {
+      "exists": true,
+      "size_bytes": 4624,
+      "sha256": "42a94c5542071a60104f81b9921d85623bc3bc12c42b4abd0c5e0592aa58ea82"
+    },
+    "src/observability/tracing.py": {
+      "exists": true,
+      "size_bytes": 4691,
+      "sha256": "f95d680d7ac1486831621305074285ad79533e6cb5cc0927a03e771beca1dd42"
+    },
+    "src/observability/unified_logger.py": {
+      "exists": true,
+      "size_bytes": 5121,
+      "sha256": "07600990a0e9e037deb85537d484861a6ef336fac0228edcea6396cdd39dbdd2"
+    },
+    "src/observability/span_sanitizer.py": {
+      "exists": true,
+      "size_bytes": 1929,
+      "sha256": "109b398b1e0056129aaef88134a2f699f3fe4b7b55a6bc6d59b2e8db51e40c80"
+    },
+    "src/guardrails/input_guard.py": {
+      "exists": true,
+      "size_bytes": 4348,
+      "sha256": "07a7a136d64f13b1ae8e8a2fe01d7964d3322ee4335bc688e7ca51308db6bf35"
+    },
+    "src/guardrails/output_guard.py": {
+      "exists": true,
+      "size_bytes": 2602,
+      "sha256": "ba9974da764882908caa05d10540a31b929a93619ec7bfb76b71f0cd0262cbf1"
+    },
+    "src/security/authorization.py": {
+      "exists": true,
+      "size_bytes": 1823,
+      "sha256": "0c606704a349e50ac9bc98580fc19491a61677fb1a9ff60120f8756f3b867ac7"
+    },
+    "src/memory/short_term.py": {
+      "exists": true,
+      "size_bytes": 440,
+      "sha256": "443504b6fd6543bcb390356373ef912a71f511c7b14e6a20e60bec23327050bf"
+    },
+    "src/memory/long_term.py": {
+      "exists": true,
+      "size_bytes": 2547,
+      "sha256": "182efabf25917dfe2520dbc19d2e02c05781fc304a0c51889b9924cabb253698"
+    },
+    "src/tools/rag_tool.py": {
+      "exists": true,
+      "size_bytes": 3459,
+      "sha256": "e328c50ea8efbdad98c046c156ca9b6c76c411e4a464fa16092b41c3762b6643"
+    },
+    "data/policy_corpus/PL_retail_personal_loan_v2.md": {
+      "exists": true,
+      "size_bytes": 2703,
+      "sha256": "e77da71839b4bf7faac8a139fae9c3cda76c863f4174c86042378def52d07e39"
+    },
+    "docs/risk-register.md": {
+      "exists": true,
+      "size_bytes": 6944,
+      "sha256": "38a55afb1a68bbaf42115d6180892bb2f8f120ea1bf988fe90f7967c83c8b403"
+    },
+    "docs/model-card.md": {
+      "exists": true,
+      "size_bytes": 4401,
+      "sha256": "a64ccea332cf21ff5c25a95f64b89502f9baf9a7e8e3e2835ddaa133d426a80a"
+    },
+    "docs/compliance.md": {
+      "exists": true,
+      "size_bytes": 8783,
+      "sha256": "66abdd3863037f395fd383c506045bc101f194405b6aaa8d8b761d42ec26716d"
+    },
+    "docs/output-risk.md": {
+      "exists": true,
+      "size_bytes": 8627,
+      "sha256": "4a9f3edea71f185fd3568cd4fc196a6e2c36c302feb42636cb09459c581c5015"
+    },
+    "docs/failure-analysis.md": {
+      "exists": true,
+      "size_bytes": 6489,
+      "sha256": "a7c1d441fdd3b25313e53ceb7aed20af362e8cab7cae8db9fd674b194be13413"
+    },
+    "docs/architecture.md": {
+      "exists": true,
+      "size_bytes": 6127,
+      "sha256": "adcf492c869d20fd265f16dc1f15fcc007d9838688302b42bbbd19badc1b1c20"
+    },
+    "docs/threat-model.md": {
+      "exists": true,
+      "size_bytes": 5180,
+      "sha256": "ac19c52eee33bd80681c66f93ee05ef1925e9d7013afa9e82b40f54e749bbd7d"
+    },
+    "docs/demo-runbook.md": {
+      "exists": true,
+      "size_bytes": 3883,
+      "sha256": "b244cb3c082ec223138d1b2f3aaf77c965901ef4eab293d2c3aecfd08b55ee43"
+    },
+    "GRADER_GUIDE.md": {
+      "exists": true,
+      "size_bytes": 7657,
+      "sha256": "f0a89f174f73de415b36e66305e312fc4bb10670f5060d9cdcc16db41aaa205f"
+    },
+    "README.md": {
+      "exists": true,
+      "size_bytes": 8229,
+      "sha256": "befee75fe8025137ed1517008a33d57aec4651847787ecf9768f3f544c597923"
+    },
+    "reports/environment.json": {
+      "exists": true,
+      "size_bytes": 428,
+      "sha256": "062ace8ce5654dff709ecc2a42e1a5f36b3941cd27960eebad57ca363cf27f3f"
+    },
+    "reports/cost_config.json": {
+      "exists": true,
+      "size_bytes": 215,
+      "sha256": "96d0a03b425344a6d3d8bae86f06c0fe8c868b0a197220ac5d4ab7d54952db22"
+    },
+    ".env.example": {
+      "exists": true,
+      "size_bytes": 253,
+      "sha256": "7a97b9d26ed4773b45539d83734cffe42c0fec3ddc7c681604d83fd8a2fbca64"
+    },
+    ".gitignore": {
+      "exists": true,
+      "size_bytes": 521,
+      "sha256": "f62d82dd598cda3d62c68c461f9dc9cb8be3c2f7fe67b4755e5369d51f885778"
+    }
+  }
+}

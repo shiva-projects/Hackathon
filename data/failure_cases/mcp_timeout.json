@@ -1,0 +1,10 @@
+{
+  "case_id": "FAIL-002",
+  "description": "MCP compute_affordability tool transport timeout triggered during high load",
+  "application_id": "APP-002",
+  "policy_version": "v2.0",
+  "pre_fix_behavior": "Unhandled transport exception crashed the execution graph",
+  "expected_failure": "Pipeline unhandled crash with empty decision status",
+  "expected_fixed_behavior": "decision_status == 'UNABLE_TO_COMPLETE' and unable_reason == 'MCP_UNAVAILABLE' with human_review_required == True",
+  "injection": "MCP_TIMEOUT_INJECTION"
+}

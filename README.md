@@ -152,3 +152,24 @@ To run the full suite of unit, integration, and security tests:
 pytest -v
 ```
 All tests run locally using synthetic fixtures without requiring external database services or cloud deployments.
+
+---
+
+## 8. Extra Credit: FastAPI Streaming API & Demonstration
+
+The copilot includes an optional asynchronous **FastAPI HTTP & Server-Sent Events (SSE) Streaming API** ([`src/api/server.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/api/server.py)) per Section 7.7 & 8.1 of the specification.
+
+### Endpoints
+- `GET /health` — Service health and timestamp status
+- `POST /api/v1/underwrite` — Synchronous structured underwriting decision
+- `POST /api/v1/underwrite/stream` — Real-time Server-Sent Events (SSE) streaming node transitions (`supervisor`, `policy_agent`, `eligibility_agent`, `risk_agent`, `decision_node`)
+- `POST /api/v1/review` — Human underwriter review entry and state update
+- `GET /api/v1/applications/{app_id}` — Query stored application underwriting result
+
+### Live Demonstration
+To run the live streaming client demonstration:
+```bash
+python scripts/demo_api_stream.py
+```
+This connects to the streaming endpoint, prints the live SSE event stream to the terminal, and records the complete frame log to `logs/api_stream_demo.log`.
+

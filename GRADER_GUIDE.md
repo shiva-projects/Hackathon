@@ -50,3 +50,13 @@ Expected final output: `RESULT: READY FOR SUBMISSION`.
 - **NFR-04 (Async & Graceful Degradation)**: [`src/resilience/timeout.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/resilience/timeout.py) and [`src/resilience/fallback.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/resilience/fallback.py) ensure tool and model failures degrade gracefully to `UNABLE_TO_COMPLETE`.
 - **NFR-05 (Synthetic Data & Masking)**: 100% synthetic data; zero plaintext national IDs or account numbers in logs or traces.
 - **NFR-06 (Machine-Generated Evidence)**: Traces, golden signals, eval reports, and logs produced by committed Python scripts.
+
+---
+
+## 🌟 Extra Credit & Bonus Deliverables (Section 7.7 & 8.1 of qn.txt)
+
+| Deliverable | Implementation | Verification Command | Committed Evidence |
+| :--- | :--- | :--- | :--- |
+| **FastAPI Streaming Server** | [`src/api/server.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/api/server.py) (Async SSE events for agent node transitions) | `pytest tests/test_api.py -v` | [`logs/api_stream_demo.log`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/logs/api_stream_demo.log) |
+| **Streaming Runner Demo** | [`scripts/demo_api_stream.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/scripts/demo_api_stream.py) | `python scripts/demo_api_stream.py` | Recorded 9 SSE frame transitions |
+

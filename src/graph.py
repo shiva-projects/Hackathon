@@ -45,7 +45,7 @@ def authorization_node(state: LoanState) -> LoanState:
     if state.get("request_status") == "REFUSED":
         return state
 
-    requester_id = state.get("applicant_facts", {}).get("requester_id") or state.get("application_id", "")
+    requester_id = state.get("actor_id") or state.get("applicant_facts", {}).get("requester_id") or state.get("application_id", "")
     app_id = state.get("application_id", "")
 
     auth_status = authorize(requester_id, app_id, run_id=state.get("session_id", "default_run"))

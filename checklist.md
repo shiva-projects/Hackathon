@@ -160,5 +160,15 @@ This checklist tracks the implementation of BC-AAIE-HACK-02 per `qn.txt` and `pl
 - [x] Execute pipeline on all sample applications
 - [x] Run `--review` CLI flow on human-review cases (`APP-004`)
 - [x] Run `scripts/regenerate_evidence.py` to produce traces, golden signals, dashboard, eval report
-- [x] Run full pytest suite across all layers (80 passed in 3.78s)
+- [x] Run full pytest suite across all layers (84 passed in 4.52s)
 - [x] Run `scripts/verify_acceptance_criteria.py` and confirm `RESULT: READY FOR SUBMISSION`
+
+---
+
+## Phase 14: Extra Credit & Bonus Capabilities (Section 7.7 & 8.1 of qn.txt)
+- [x] `src/api/server.py`: Async FastAPI streaming server with Server-Sent Events (SSE) streaming agent execution in real-time
+- [x] `src/api/__init__.py`: API module interface
+- [x] `tests/test_api.py`: Unit and integration test suite covering `/health`, `/api/v1/underwrite`, `/api/v1/underwrite/stream`, `/api/v1/review`, `/api/v1/applications/{app_id}`
+- [x] `scripts/demo_api_stream.py`: Streaming demonstration runner with live SSE frame recording
+- [x] `logs/api_stream_demo.log`: Committed transcript of live SSE streaming execution
+

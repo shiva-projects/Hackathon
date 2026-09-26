@@ -15,22 +15,36 @@ from src.guardrails.output_guard import screen_output
 from src.observability.unified_logger import log_agent_action, log_tool_call
 
 
+from src.llm.client import get_llm_client, invoke_with_resilience
+from src.llm.provider_resolver import load_model_config, resolve_provider
+
+
 def generate_llm_rationale(
     recommendation: str,
     affordability: AffordabilityResult,
     reasons: List[str],
     policy_version: str,
     citations: List[Dict[str, Any]],
+    run_id: str = "default_run",
 ) -> str:
     """
-    Invokes Google Gemini to explain the deterministic decision in prose.
+    Invokes the resolved LLM provider (Gemini primary -> Groq fallback) to explain
+    the deterministic decision in prose.
     Gracefully falls back to deterministic explanation or GEMINI_FALLBACK_RATIONALE.
     """
-    api_key = os.environ.get("GEMINI_API_KEY")
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    # Check if a live provider key exists in the environment
+    has_live_key = False
+    try:
+        cfg = load_model_config()
+        provider_name, provider_cfg = resolve_provider(cfg)
+        key_val = os.environ.get(provider_cfg.get("env_key", ""), "")
+        if key_val and key_val not in ("your_gemini_api_key_here", "gsk_test_dummy", "test-key"):
+            has_live_key = True
+    except Exception:
+        has_live_key = False
 
-    # If no API key is provided or offline mode, generate factual explanation directly
-    if not api_key or api_key == "your_gemini_api_key_here":
+    # If no live API key is provided or offline mode, generate factual explanation directly
+    if not has_live_key:
         rule_citations = ", ".join([c.get("rule_id", "PL-07") for c in citations]) or "PL-07"
         return (
             f"AI recommendation: {recommendation}. "
@@ -39,9 +53,6 @@ def generate_llm_rationale(
         )
 
     try:
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        llm = ChatGoogleGenerativeAI(model=model_name, google_api_key=api_key, temperature=0.0)
-
         prompt = (
             f"You are a loan underwriting assistant. Explain the following deterministic underwriting result:\n"
             f"Recommendation: {recommendation}\n"
@@ -53,8 +64,7 @@ def generate_llm_rationale(
             f"Do not alter the recommendation. Do not invent new figures."
         )
 
-        response = llm.invoke(prompt)
-        return str(response.content)
+        return invoke_with_resilience(prompt, run_id=run_id)
     except Exception as e:
         # Per Section 14.17: Rationale generation failure falls back gracefully
         return GEMINI_FALLBACK_RATIONALE
@@ -96,6 +106,7 @@ def decision_agent_node(state: LoanState) -> LoanState:
         reasons=decision.reasons,
         policy_version=policy_ver,
         citations=citations,
+        run_id=state.get("session_id", "default_run"),
     )
 
     # 3. Output Guardrail (PII scrub + recommendation language enforcement)

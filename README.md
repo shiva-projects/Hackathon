@@ -29,16 +29,21 @@ pip install -r requirements.txt
 ```
 
 ### Step 2: Configure Environment Variables
-Copy `.env.example` to `.env` and configure your Google Gemini API key:
+Copy `.env.example` to `.env` and configure your API key:
 ```bash
 cp .env.example .env
 ```
 Ensure `.env` contains:
 ```env
+# Preferred primary provider:
 GEMINI_API_KEY=your_actual_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
-MODEL_PROVIDER=google
+GEMINI_MODEL=gemini-2.0-flash
+
+# Optional secondary fallback (used only if GEMINI_API_KEY is unset or exhausted):
+GROQ_API_KEY=
 ```
+Set `GEMINI_API_KEY` (preferred) or `GROQ_API_KEY` (fallback) in `.env`. The pipeline prints and records which provider it resolved to at startup — check `reports/environment.json` if unsure which one ran.
+
 *(Note: As verified by `scripts/verify_evidence.py` and `tests/test_authorization.py`, `.env` is covered by `.gitignore` and no secrets are committed to Git).*
 
 ---

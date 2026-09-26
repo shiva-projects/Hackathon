@@ -1,7 +1,7 @@
 {
   "application_id": "APP-002",
-  "session_id": "SESSION-APP-002-1790414682",
-  "run_id": "RUN-20260926145442",
+  "session_id": "SESSION-APP-002-1790416728",
+  "run_id": "RUN-e67533de",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -120,5 +120,5 @@
     }
   ],
   "rationale": "AI recommendation: REFER. Based on policy v2.0 (PL-GENERAL, PL-07, PL-15), the applicant's DTI is 52.0%. DTI 52.0% exceeds policy threshold 40.0%",
-  "timestamp": "2026-09-26T09:24:42.683240+00:00"
+  "timestamp": "2026-09-26T09:58:48.452561+00:00"
 }

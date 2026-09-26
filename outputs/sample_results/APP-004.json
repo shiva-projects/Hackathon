@@ -1,7 +1,7 @@
 {
   "application_id": "APP-004",
-  "session_id": "SESSION-APP-004-1790414682",
-  "run_id": "RUN-20260926145442",
+  "session_id": "SESSION-APP-004-1790416620",
+  "run_id": "RUN-20260926152700",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -9,7 +9,7 @@
   "ai_recommendation": "REFER",
   "human_review_required": true,
   "final_decision": "APPROVE",
-  "review_id": "REV-APP-004-1790414697",
+  "review_id": "REV-APP-004-1790416630",
   "affordability": {
     "dti": 0.08,
     "disposable_income": 230000.0,
@@ -126,5 +126,5 @@
     }
   ],
   "rationale": "AI recommendation: REFER. Based on policy v2.0 (PL-GENERAL, PL-07, PL-15), the applicant's DTI is 8.0%. High risk detected [LOAN_AMOUNT_EXCEEDED]: Requested amount 3000000.0 exceeds maximum allowed 1500000.0",
-  "timestamp": "2026-09-26T09:24:42.844643+00:00"
+  "timestamp": "2026-09-26T09:57:00.765288+00:00"
 }

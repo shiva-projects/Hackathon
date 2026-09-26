@@ -3,6 +3,9 @@
 
 Welcome, evaluator! This repository contains a fully working, observable, and governed LangGraph multi-agent copilot. Every claim in this repository is backed by committed code and machine-generated artifacts under the **Evidence-in-Repo Rule**.
 
+> **LLM Provider Transparency (v8 Addendum)**:  
+> Which model/provider actually produced a given run → [`reports/environment.json`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/reports/environment.json), field `provider` (`gemini` primary, `groq` fallback). Detailed resolution logs are recorded in [`logs/agent_actions.jsonl`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/logs/agent_actions.jsonl).
+
 ---
 
 ## ⚡ The 3 Locked Commands (Quick Test)

@@ -2,8 +2,11 @@
 
 ## 1. Model Details
 - **System Name**: Loan Origination & Underwriting Copilot (BC-AAIE-HACK-02)
-- **Model Provider**: Google Gemini API (`google`)
-- **Model Architecture**: Gemini 2.5 Flash / Gemini 1.5 Flash (via Google GenAI Python SDK)
+- **System Name**: Loan Origination & Underwriting Copilot (BC-AAIE-HACK-02)
+- **Supported Model Providers (v8 Addendum)**:
+  - **Primary**: Google Gemini API (`gemini`, model: `gemini-2.0-flash` / `gemini-2.5-flash`)
+  - **Secondary (Fallback)**: Groq API (`groq`, model: `qwen/qwen3-32b`, fallback: `openai/gpt-oss-20b`) via OpenAI-compatible endpoint
+- **Provider Resolution & Fallback**: Deterministic, configuration-driven via [`config/model_config.json`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/config/model_config.json) and [`src/llm/provider_resolver.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/llm/provider_resolver.py). Groq is activated only if `GEMINI_API_KEY` is absent or Gemini retries are exhausted. Managed via [`src/llm/client.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/llm/client.py).
 - **Orchestration**: LangGraph (StateGraph multi-agent architecture with supervisor pattern)
 - **Tool Protocol**: Model Context Protocol (MCP stdio server via `fastmcp` / `langchain-mcp-adapters`)
 - **Temperature**: `0.0` (deterministic explanatory generation)

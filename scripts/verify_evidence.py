@@ -76,6 +76,12 @@ REQUIRED_FILES = [
     "tests/test_unified_log_consistency.py",
     "tests/test_memory_persistence.py",
     
+    # Multi-Provider LLM Layer (v8 Addendum)
+    "config/model_config.json",
+    "src/llm/provider_resolver.py",
+    "src/llm/client.py",
+    "tests/test_model_provider_fallback.py",
+    
     # Secrets Hygiene
     ".env.example",
     ".gitignore",
@@ -331,13 +337,13 @@ def check_cross_artifact_consistency():
             if not gs_data.get("source_run_id"):
                 return False, "reports/golden_signals.json missing source_run_id."
                 
-    # Check Gemini only provider
+    # Check approved providers (Gemini primary -> Groq fallback per v8)
     env_path = REPO_ROOT / "reports" / "environment.json"
     if env_path.exists():
         with open(env_path, "r", encoding="utf-8") as f:
             env_data = json.load(f)
-            if env_data.get("provider") != "google":
-                return False, f"Provider must be google, found: {env_data.get('provider')}"
+            if env_data.get("provider") not in ("google", "gemini", "groq"):
+                return False, f"Provider must be google, gemini, or groq, found: {env_data.get('provider')}"
                 
     return True, "Cross-artifact consistency checks passed across all samples, reviews, citations, and manifests."
 

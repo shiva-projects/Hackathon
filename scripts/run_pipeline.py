@@ -203,6 +203,61 @@ def main():
     run_id = f"RUN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     processed_app_ids = []
 
+    # v8 Startup Provider Resolution & Evidence Recording (Section 5 & 8)
+    from src.llm.provider_resolver import load_model_config
+    from src.llm.client import get_llm_client, reset_run_provider
+    from src.observability.unified_logger import log_agent_action
+
+    reset_run_provider()
+    config = load_model_config()
+
+    try:
+        handle = get_llm_client()
+        resolved_provider = handle.provider
+        resolved_model = handle.model
+        resolution_reason = handle.resolution_reason
+    except Exception as exc:
+        resolved_provider = "gemini"
+        resolved_model = config.get("providers", {}).get("gemini", {}).get("chat_model", "gemini-2.0-flash")
+        resolution_reason = f"No live provider key detected ({exc}); falling back to default configuration"
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    log_agent_action(
+        actor="system",
+        action="provider_resolution",
+        tool="llm_resolver",
+        decision=resolved_provider,
+        run_id=run_id,
+        details={
+            "resolved_provider": resolved_provider,
+            "resolved_model": resolved_model,
+            "resolution_reason": resolution_reason,
+            "timestamp": now_iso,
+        },
+    )
+
+    env_path = PROJECT_ROOT / "reports" / "environment.json"
+    env_data = {}
+    if env_path.exists():
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                env_data = json.load(f)
+        except Exception:
+            pass
+
+    env_data.update({
+        "provider": resolved_provider,
+        "model": resolved_model,
+        "temperature": config.get("providers", {}).get(resolved_provider, {}).get("temperature", 0.0),
+        "resolution_order": config.get("resolution_order", ["gemini", "groq"]),
+        "resolution_reason": resolution_reason,
+        "verified_at": now_iso,
+    })
+    with open(env_path, "w", encoding="utf-8") as f:
+        json.dump(env_data, f, indent=2)
+
+    print(f"[startup] LLM provider resolved: {resolved_provider} ({resolved_model}) -- {resolution_reason}")
+
     if args.review:
         if not args.application:
             print("Error: --review requires --application <path>")
@@ -258,7 +313,8 @@ def main():
         "application_ids": processed_app_ids,
         "git_commit": "committed",
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "model": os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        "provider": resolved_provider,
+        "model": resolved_model,
     }
     with open(latest_run_p, "w", encoding="utf-8") as f:
         json.dump(latest_info, f, indent=2)

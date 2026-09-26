@@ -1,0 +1,37 @@
+{
+  "resolution_order": ["gemini", "groq"],
+  "providers": {
+    "gemini": {
+      "env_key": "GEMINI_API_KEY",
+      "sdk": "google-generativeai",
+      "chat_model": "gemini-2.0-flash",
+      "temperature": 0,
+      "pricing": {
+        "input_per_million": 0.10,
+        "output_per_million": 0.40,
+        "currency": "USD",
+        "pricing_source": "https://ai.google.dev/pricing",
+        "pricing_checked_at": "2026-09-26"
+      }
+    },
+    "groq": {
+      "env_key": "GROQ_API_KEY",
+      "sdk": "openai-compatible",
+      "base_url": "https://api.groq.com/openai/v1",
+      "chat_model": "qwen/qwen3-32b",
+      "fallback_chat_model": "openai/gpt-oss-20b",
+      "temperature": 0,
+      "pricing": {
+        "input_per_million": 0.29,
+        "output_per_million": 0.59,
+        "currency": "USD",
+        "pricing_source": "https://console.groq.com/docs/models",
+        "pricing_checked_at": "2026-09-26"
+      }
+    }
+  },
+  "retry_before_provider_switch": {
+    "max_attempts_per_provider": 2,
+    "timeout_seconds": 20
+  }
+}

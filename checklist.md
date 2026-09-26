@@ -172,3 +172,19 @@ This checklist tracks the implementation of BC-AAIE-HACK-02 per `qn.txt` and `pl
 - [x] `scripts/demo_api_stream.py`: Streaming demonstration runner with live SSE frame recording
 - [x] `logs/api_stream_demo.log`: Committed transcript of live SSE streaming execution
 
+---
+
+## Phase 15: v8 Addendum — Configurable Multi-Provider LLM Layer (Gemini Primary → Groq Secondary)
+- [x] `config/model_config.json`: Single source of truth for provider resolution order, models, temperature, and pricing (switching models requires **no code edits**)
+- [x] `src/llm/provider_resolver.py`: Deterministic infrastructure resolution checking environment keys without network or LLM calls
+- [x] `src/llm/client.py`: Centralized LLM factory and choke point; run-level provider affinity and retry exhaustion fallback
+- [x] `tests/test_model_provider_fallback.py`: 4 unit tests verifying Gemini preference, Groq fallback, no-key RuntimeError, and config-driven ordering
+- [x] `tests/test_resilience.py`: Integration test `test_mid_run_provider_switch_on_exhausted_retries` verifying `provider_fallback` event, run-level provider switch, and deterministic preservation
+- [x] `scripts/run_pipeline.py`: Startup resolution writing `provider_resolution` to `logs/agent_actions.jsonl` and recording resolved provider/model in `reports/environment.json`
+- [x] `reports/cost_config.json`: Multi-provider pricing blocks (`gemini` & `groq`); `scripts/generate_golden_signals.py` sources cost from the actual resolved provider
+- [x] `docs/model-card.md`: Documents both Gemini and Groq models with fallback triggers and control citations
+- [x] `docs/compliance.md`: Documents the Gemini→Groq fallback deviation and transparently notes pending instructor approval artifact
+- [x] `.env.example`: Documents `GEMINI_API_KEY` (primary) and `GROQ_API_KEY` (fallback)
+- [x] `GRADER_GUIDE.md`: Points graders to `reports/environment.json` for the actual run provider
+
+

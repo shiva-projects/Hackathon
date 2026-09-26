@@ -1,7 +1,7 @@
 {
   "application_id": "APP-003",
-  "session_id": "SESSION-APP-003-1790414682",
-  "run_id": "RUN-20260926145442",
+  "session_id": "SESSION-APP-003-1790416620",
+  "run_id": "RUN-20260926152700",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -120,5 +120,5 @@
     }
   ],
   "rationale": "AI recommendation: DECLINE. Based on policy v2.0 (PL-GENERAL, PL-07, PL-15), the applicant's DTI is 6.7%. Failed mandatory eligibility rule [PL-DOC-02]: Required document 'income_statement' is MISSING",
-  "timestamp": "2026-09-26T09:24:42.766116+00:00"
+  "timestamp": "2026-09-26T09:57:00.694508+00:00"
 }

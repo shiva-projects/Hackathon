@@ -39,3 +39,20 @@ This document maps regulatory obligations under the **EU Artificial Intelligence
 | **PII Anonymization & Redaction** | Masking of national IDs, account numbers, and credit references across all outputs, OpenTelemetry spans, and log lines. | [`src/guardrails/output_guard.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/guardrails/output_guard.py)<br>[`src/observability/span_sanitizer.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/observability/span_sanitizer.py)<br>[`tests/test_output_pii_redaction.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/tests/test_output_pii_redaction.py)<br>[`tests/test_log_pii_redaction.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/tests/test_log_pii_redaction.py) |
 | **Access Authorization & Partitioning** | Multi-tenant isolation ensuring applicants can never inspect peer applications; cross-session memory scoped strictly to applicant ID. | [`src/security/authorization.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/security/authorization.py)<br>[`src/memory/memory_write_policy.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/memory/memory_write_policy.py)<br>[`tests/test_authorization.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/tests/test_authorization.py)<br>[`tests/test_memory_isolation.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/tests/test_memory_isolation.py) |
 | **Storage & Purpose Limitation** | Untrusted free text is quarantined and barred from long-term memory persistence; only verified facts are retained. | [`src/context/quarantine.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/context/quarantine.py)<br>[`tests/test_memory_persistence.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/tests/test_memory_persistence.py) |
+
+---
+
+## 4. Multi-Provider LLM Layer Regulatory Disclosure (v8 Addendum)
+
+### Deviation from Stated Gemini-Only Rule
+- **Description**: A secondary open-source-compatible model fallback (Groq: `qwen/qwen3-32b`) is configured to ensure operational continuity under primary API quota exhaustion or network isolation.
+- **Provider Precedence**: Google Gemini (`gemini-2.0-flash`) remains primary and default. Groq is accessed strictly as an automated failover when `GEMINI_API_KEY` is absent or when Gemini API retries are exhausted.
+- **Determinism Preservation**: The multi-provider switch strictly affects explanatory rationale generation; all mathematical affordability calculations, policy rules, and `ai_recommendation` decisions remain 100% deterministic and invariant across both providers.
+- **Instructor Approval Status**: Formal written instructor approval artifact (`docs/instructor-approval-groq-fallback.md`) is pending submission; the architecture is implemented with explicit configuration gating in [`config/model_config.json`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/config/model_config.json) and verifiable logging of all `provider_resolution` and `provider_fallback` events in [`logs/agent_actions.jsonl`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/logs/agent_actions.jsonl).
+- **Committed Controls & Evidence**:
+  - Configuration: [`config/model_config.json`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/config/model_config.json)
+  - Resolver: [`src/llm/provider_resolver.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/llm/provider_resolver.py)
+  - Client & Fallback Engine: [`src/llm/client.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/llm/client.py)
+  - Environment Record: [`reports/environment.json`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/reports/environment.json) (field `provider`)
+  - Integration Tests: [`tests/test_model_provider_fallback.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/tests/test_model_provider_fallback.py) and [`tests/test_resilience.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/tests/test_resilience.py)
+

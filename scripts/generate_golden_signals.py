@@ -69,23 +69,42 @@ def generate_golden_signals(
         "end_to_end": compute_percentiles(thinking_lats + acting_lats + tool_lats),
     }
 
-    # 2. Token counts & Cost estimation from reports/cost_config.json
+    # 2. Token counts & Cost estimation from reports/cost_config.json matching reports/environment.json
+    env_p = Path("reports/environment.json")
+    resolved_provider = "gemini"
+    if env_p.exists():
+        try:
+            with open(env_p, "r", encoding="utf-8") as f:
+                env_info = json.load(f)
+                prov = env_info.get("provider", "gemini")
+                if prov in ("google", "gemini"):
+                    resolved_provider = "gemini"
+                elif prov == "groq":
+                    resolved_provider = "groq"
+        except Exception:
+            resolved_provider = "gemini"
+
     cost_cfg_p = Path(cost_config_path)
     if cost_cfg_p.exists():
         with open(cost_cfg_p, "r", encoding="utf-8") as f:
-            cost_cfg = json.load(f)
+            cost_raw = json.load(f)
+        if "providers" in cost_raw and resolved_provider in cost_raw["providers"]:
+            cost_cfg = cost_raw["providers"][resolved_provider]
+        else:
+            cost_cfg = cost_raw
     else:
         cost_cfg = {
-            "model": "gemini-2.5-flash",
-            "input_price_per_million": 0.075,
-            "output_price_per_million": 0.30,
+            "model": "gemini-2.0-flash",
+            "input_price_per_million": 0.10,
+            "output_price_per_million": 0.40,
+            "pricing_source": "https://ai.google.dev/pricing",
         }
 
     # Base token metrics across run
     input_tokens = 24500
     output_tokens = 4800
-    cost_in = (input_tokens / 1_000_000) * float(cost_cfg.get("input_price_per_million", 0.075))
-    cost_out = (output_tokens / 1_000_000) * float(cost_cfg.get("output_price_per_million", 0.30))
+    cost_in = (input_tokens / 1_000_000) * float(cost_cfg.get("input_price_per_million", 0.10))
+    cost_out = (output_tokens / 1_000_000) * float(cost_cfg.get("output_price_per_million", 0.40))
     total_cost_usd = round(cost_in + cost_out, 6)
 
     # 3. Import accuracy from eval_report.json
@@ -105,7 +124,8 @@ def generate_golden_signals(
     golden_signals = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_run_id": "RUN-PHOENIX-CURRENT",
-        "model": cost_cfg.get("model", "gemini-2.5-flash"),
+        "provider": resolved_provider,
+        "model": cost_cfg.get("model", "gemini-2.0-flash"),
         "latency_by_span_type": latency_metrics,
         "token_usage": {
             "input_tokens": input_tokens,
@@ -114,7 +134,8 @@ def generate_golden_signals(
         },
         "cost_governance": {
             "cost_config_used": cost_config_path,
-            "pricing_source": cost_cfg.get("pricing_source", "Google Cloud / Gemini Official"),
+            "resolved_provider": resolved_provider,
+            "pricing_source": cost_cfg.get("pricing_source", "https://ai.google.dev/pricing"),
             "estimated_cost_usd": total_cost_usd,
         },
         "evaluation_metrics": eval_metrics,

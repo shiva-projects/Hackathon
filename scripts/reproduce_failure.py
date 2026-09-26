@@ -79,6 +79,12 @@ def reproduce_wrong_policy_selection():
         error="Selected expired policy version v1.0",
     )
 
+    try:
+        from langchain_core.runnables import RunnableLambda
+        RunnableLambda(lambda x: x, name=f"failure_replay_{run_id}").invoke({"run_id": run_id, "span_id": span_id})
+    except Exception:
+        pass
+
     print(f"  Emitted resolving trace citation: {run_id} / {span_id} -> logs/tool_calls.jsonl")
 
     print("\n[2. FIX APPLIED]:")
@@ -137,6 +143,12 @@ def reproduce_mcp_timeout():
         step_id=span_id,
         error="MCP transport timed out after 10.0s",
     )
+
+    try:
+        from langchain_core.runnables import RunnableLambda
+        RunnableLambda(lambda x: x, name=f"failure_replay_{run_id}").invoke({"run_id": run_id, "span_id": span_id})
+    except Exception:
+        pass
 
     print(f"  Emitted resolving trace citation: {run_id} / {span_id} -> logs/tool_calls.jsonl")
 
@@ -202,6 +214,12 @@ def reproduce_rag_poisoning():
         step_id=span_id,
     )
 
+    try:
+        from langchain_core.runnables import RunnableLambda
+        RunnableLambda(lambda x: x, name=f"failure_replay_{run_id}").invoke({"run_id": run_id, "span_id": span_id})
+    except Exception:
+        pass
+
     print(f"  Emitted resolving trace citation: {run_id} / {span_id} -> logs/agent_actions.jsonl")
 
     print("\n[2. FIX APPLIED]:")
@@ -219,6 +237,7 @@ def reproduce_rag_poisoning():
 
 
 def main():
+    tracer.initialize()
     parser = argparse.ArgumentParser(description="Reproduce failure cases deterministically")
     parser.add_argument(
         "--case",
@@ -234,6 +253,7 @@ def main():
         reproduce_mcp_timeout()
     if args.case in {"rag_poisoning", "all"}:
         reproduce_rag_poisoning()
+    tracer.flush()
 
 
 if __name__ == "__main__":

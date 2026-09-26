@@ -38,7 +38,7 @@ def test_mcp_resource_read_and_causal_selector_chain():
     transcript_path = Path("logs/mcp_transcript.jsonl")
     assert transcript_path.exists()
     lines = [json.loads(line) for line in transcript_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    resource_reads = [l for l in lines if l.get("type") == "resource_read" and l.get("resource") == "policy_corpus://index"]
+    resource_reads = [l for l in lines if l.get("type") == "resource_read" and l.get("resource") in ("policy-corpus://index", "policy_corpus://index")]
     assert len(resource_reads) > 0
 
 

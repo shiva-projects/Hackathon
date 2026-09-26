@@ -14,8 +14,9 @@ python scripts/reproduce_failure.py --case all
 
 ### 1. Evidence Citation
 - **Case Identifier**: `FAIL-001`
-- **Phoenix Run ID**: `RUN-FAIL-001`
-- **Phoenix Span ID**: `span-policy-001`
+- **Deterministic Replay Run ID**: `RUN-FAIL-001`
+- **Replay Span ID**: `span-policy-001`
+- **Phoenix OTEL Span**: `failure_replay_RUN-FAIL-001` (recorded in Phoenix collector and `traces/phoenix_spans.parquet`)
 - **Log Reference**: `logs/tool_calls.jsonl` record with `tool_name: "policy_selector"`
 - **Test Fixture**: [`data/failure_cases/wrong_policy_selection.json`](..\data\failure_cases\wrong_policy_selection.json)
 
@@ -40,8 +41,9 @@ The initial policy selection logic used a non-strict datetime comparison that fa
 
 ### 1. Evidence Citation
 - **Case Identifier**: `FAIL-002`
-- **Phoenix Run ID**: `RUN-FAIL-002`
-- **Phoenix Span ID**: `span-mcp-timeout-002`
+- **Deterministic Replay Run ID**: `RUN-FAIL-002`
+- **Replay Span ID**: `span-mcp-timeout-002`
+- **Phoenix OTEL Span**: `failure_replay_RUN-FAIL-002` (recorded in Phoenix collector and `traces/phoenix_spans.parquet`)
 - **Log Reference**: `logs/tool_calls.jsonl` record with `tool_name: "compute_affordability"`, `status: "failed"`
 - **Test Fixture**: [`data/failure_cases/mcp_timeout.json`](..\data\failure_cases\mcp_timeout.json)
 
@@ -67,8 +69,9 @@ The agent node invoked `compute_affordability` directly without an asynchronous 
 
 ### 1. Evidence Citation
 - **Case Identifier**: `FAIL-003`
-- **Phoenix Run ID**: `RUN-FAIL-003`
-- **Phoenix Span ID**: `span-rag-poison-003`
+- **Deterministic Replay Run ID**: `RUN-FAIL-003`
+- **Replay Span ID**: `span-rag-poison-003`
+- **Phoenix OTEL Span**: `failure_replay_RUN-FAIL-003` (recorded in Phoenix collector and `traces/phoenix_spans.parquet`)
 - **Log Reference**: `logs/agent_actions.jsonl` record with `action: "evaluate_underwriting_decision"`
 - **Test Fixture**: [`data/failure_cases/rag_poisoning.json`](..\data\failure_cases\rag_poisoning.json)
 

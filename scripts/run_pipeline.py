@@ -312,6 +312,10 @@ def main():
                 except Exception as e:
                     print(f"Error processing {f.name}: {e}")
 
+    # Flush Phoenix spans to collector
+    from src.observability.tracing import tracer
+    tracer.flush()
+
     # Write reports/latest_run.json per plan.md Section 9.3
     latest_run_p = Path("reports/latest_run.json")
     latest_run_p.parent.mkdir(parents=True, exist_ok=True)

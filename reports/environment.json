@@ -11,7 +11,7 @@
     "pandas": "2.2.0+",
     "pyarrow": "18.0.0+"
   },
-  "verified_at": "2026-09-26T15:59:14.322690+00:00",
+  "verified_at": "2026-09-26T18:31:41.371277+00:00",
   "resolution_order": [
     "gemini",
     "groq"

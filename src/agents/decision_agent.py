@@ -67,18 +67,8 @@ async def agenerate_llm_rationale(
 ) -> str:
     """
     Asynchronously invokes the resolved LLM provider to explain the deterministic decision in prose.
+    Tests that need to intercept this call should mock `ainvoke_with_resilience` directly.
     """
-    import unittest.mock
-    if isinstance(generate_llm_rationale, (unittest.mock.Mock, unittest.mock.MagicMock)):
-        return generate_llm_rationale(
-            recommendation=recommendation,
-            affordability=affordability,
-            reasons=reasons,
-            policy_version=policy_version,
-            citations=citations,
-            run_id=run_id,
-        )
-
     has_live_key = has_live_provider_key()
     if not has_live_key:
         rule_citations = ", ".join([c.get("rule_id", "PL-07") for c in citations]) or "PL-07"
@@ -104,6 +94,7 @@ async def agenerate_llm_rationale(
         import logging
         logging.getLogger(__name__).warning(f"Async LLM rationale generation failed ({e}), using deterministic fallback.")
         return GEMINI_FALLBACK_RATIONALE
+
 
 
 async def adecision_agent_node(state: LoanState) -> LoanState:

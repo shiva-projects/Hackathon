@@ -19,7 +19,7 @@ except ImportError:
     except ImportError:
         from mcp.server.mcpserver import MCPServer as FastMCP
 from src.domain.calculations import compute_affordability as domain_compute_affordability
-from src.observability.unified_logger import log_mcp_event, log_tool_call
+from src.observability.unified_logger import log_tool_call
 
 mcp = FastMCP("LoanUnderwritingMCP")
 
@@ -44,17 +44,8 @@ def get_policy_corpus_index() -> str:
     Returns the complete lending policy corpus manifest (candidate list).
     Consumed deterministically by policy_selector.py per plan.md Section 14.3.
     """
-    start_time = time.time()
     manifest = _get_corpus_manifest()
-    latency_ms = (time.time() - start_time) * 1000.0
-
-    # Log resource read event
-    log_mcp_event(
-        event_type="resource_read",
-        resource_or_tool="policy_corpus://index",
-        caller="policy_selector",
-        details={"policy_count": len(manifest.get("policies", {}))},
-    )
+    # MCP resource read is logged by client.py (authoritative MCP transcript layer)
     return json.dumps(manifest, indent=2)
 
 
@@ -89,12 +80,7 @@ def get_policy_document(policy_id: str, version: str) -> str:
         latency_ms=latency_ms,
         status="success" if policy_meta else "not_found",
     )
-    log_mcp_event(
-        event_type="tool_call",
-        resource_or_tool="get_policy_document",
-        caller="policy_agent",
-        details={"policy_id": policy_id, "version": version, "found": policy_meta is not None},
-    )
+    # MCP tool_call is logged by client.py (authoritative MCP transcript layer)
     return json.dumps(res, indent=2)
 
 
@@ -131,12 +117,7 @@ def compute_affordability(
         latency_ms=latency_ms,
         status="success",
     )
-    log_mcp_event(
-        event_type="tool_call",
-        resource_or_tool="compute_affordability",
-        caller="eligibility_agent",
-        details=res_dict,
-    )
+    # MCP tool_call is logged by client.py (authoritative MCP transcript layer)
     return json.dumps(res_dict, indent=2)
 
 

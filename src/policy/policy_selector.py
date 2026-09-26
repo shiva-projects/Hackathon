@@ -45,11 +45,18 @@ def select_applicable_policy(
     Candidate list is strictly derived from the resource manifest (Section 14.3).
     """
     if resource_manifest is None:
-        path = Path(manifest_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Policy manifest not found: {manifest_path}")
-        with open(path, "r", encoding="utf-8") as f:
-            resource_manifest = json.load(f)
+        try:
+            from mcp_server.client import MCPClient
+            resource_manifest = MCPClient.read_resource_manifest()
+        except Exception:
+            resource_manifest = None
+
+        if resource_manifest is None:
+            path = Path(manifest_path)
+            if not path.exists():
+                raise FileNotFoundError(f"Policy manifest not found: {manifest_path}")
+            with open(path, "r", encoding="utf-8") as f:
+                resource_manifest = json.load(f)
 
     policies_dict = resource_manifest.get("policies", {})
     candidate_ids = list(policies_dict.keys())

@@ -1,4 +1,4 @@
 span_type,p50_latency_ms,p95_latency_ms,token_volume,cost_usd
 thinking,45.0,45.0,4800,0.00144
 acting,45.0,45.0,0,0.0
-tool,0.68,15.0,24500,0.00184
+tool,0.72,15.0,24500,0.00184

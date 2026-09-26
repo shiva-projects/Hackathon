@@ -1,7 +1,7 @@
 {
   "application_id": "APP-001",
-  "session_id": "SESSION-APP-001-1790413662",
-  "run_id": "RUN-20260926143742",
+  "session_id": "SESSION-APP-001-1790414682",
+  "run_id": "RUN-20260926145442",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -113,5 +113,5 @@
     }
   ],
   "rationale": "AI recommendation: APPROVE. Based on policy v2.0 (PL-GENERAL, PL-07, PL-15), the applicant's DTI is 20.8%. Application satisfies all eligibility, risk, and affordability criteria (DTI: 20.8%).",
-  "timestamp": "2026-09-26T09:07:42.930578+00:00"
+  "timestamp": "2026-09-26T09:24:42.586916+00:00"
 }

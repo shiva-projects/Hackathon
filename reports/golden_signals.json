@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-26T09:20:49.573564+00:00",
+  "generated_at": "2026-09-26T09:25:09.483170+00:00",
   "source_run_id": "RUN-PHOENIX-CURRENT",
   "model": "gemini-2.5-flash",
   "latency_by_span_type": {
@@ -12,7 +12,7 @@
       "p95_ms": 45.0
     },
     "tool": {
-      "p50_ms": 0.68,
+      "p50_ms": 0.72,
       "p95_ms": 15.0
     },
     "end_to_end": {

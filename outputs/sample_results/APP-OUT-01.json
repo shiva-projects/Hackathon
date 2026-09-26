@@ -1,7 +1,7 @@
 {
   "application_id": "APP-OUT-01",
-  "session_id": "SESSION-APP-OUT-01-1790413663",
-  "run_id": "RUN-20260926143742",
+  "session_id": "SESSION-APP-OUT-01-1790414683",
+  "run_id": "RUN-20260926145442",
   "request_status": "REFUSED",
   "refusal_reason": "AUTHORIZATION_DENIED",
   "decision_status": "N/A",
@@ -15,5 +15,5 @@
   "policy_selected": {},
   "policy_citations": [],
   "rationale": "Request refused: AUTHORIZATION_DENIED.",
-  "timestamp": "2026-09-26T09:07:43.497692+00:00"
+  "timestamp": "2026-09-26T09:24:43.148481+00:00"
 }

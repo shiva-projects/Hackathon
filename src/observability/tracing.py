@@ -6,6 +6,7 @@ Per plan.md Section 7.2 & Non-Negotiable Rule 9 (Phoenix failures never block un
 
 import os
 import time
+import asyncio
 from typing import Optional, Dict, Any, Callable
 from pathlib import Path
 import pandas as pd
@@ -38,21 +39,22 @@ class ExecutionTracer:
                 from openinference.instrumentation.langchain import LangChainInstrumentor
                 _PHOENIX_AVAILABLE = True
 
-            # Start Phoenix session if not already running
-            if _phoenix_session is None:
-                port = int(os.environ.get("PHOENIX_PORT", "6006"))
-                try:
-                    _phoenix_session = px.launch_app(port=port)
-                except Exception:
-                    pass  # May already be active
-
-            LangChainInstrumentor().instrument()
-            _px_client = px.Client()
+            endpoint = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:6006")
+            try:
+                LangChainInstrumentor().instrument()
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"LangChainInstrumentor already instrumented or failed: {e}")
+            try:
+                _px_client = px.Client(endpoint=endpoint)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Phoenix px.Client unavailable on {endpoint}: {e}")
+                _px_client = None
             self._initialized = True
             return True
         except Exception as e:
             _PHOENIX_AVAILABLE = False
-            # Rule 9: Observability degradation must never block underwriting
             print(f"Warning: Phoenix instrumentation degraded: {e}")
             return False
 
@@ -104,33 +106,122 @@ class ExecutionTracer:
                 px_df = _px_client.get_spans_dataframe()
                 if px_df is not None and not px_df.empty:
                     df = px_df
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).debug(f"Phoenix client get_spans_dataframe unavailable: {e}")
 
         if df is None or df.empty:
-            # Create dataframe from recorded spans
+            # Create dataframe from recorded spans if present
             if self.spans:
                 df = pd.DataFrame(self.spans)
             else:
-                # Minimum fallback dataframe structure
-                df = pd.DataFrame([{
-                    "name": "root_pipeline",
-                    "span_kind": "acting",
-                    "latency_ms": 150.0,
-                    "run_id": "RUN-INIT",
-                    "step_id": "step-init",
-                    "status": "success",
-                }])
+                # No spans recorded - do not fabricate fake spans or fake latency
+                df = pd.DataFrame(columns=[
+                    "name", "span_kind", "latency_ms", "run_id", "step_id", "status"
+                ])
 
-        # Save to parquet
-        try:
-            df.to_parquet(out_p, index=False)
-        except Exception:
-            # Fallback to json/csv if parquet serialization encounters type quirks
-            df.to_json(out_p.with_suffix(".jsonl"), orient="records", lines=True)
+        # Save to parquet only if valid dataframe exists
+        if not df.empty:
+            try:
+                df.to_parquet(out_p, index=False)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Parquet export failed ({e}), writing jsonl fallback")
+                df.to_json(out_p.with_suffix(".jsonl"), orient="records", lines=True)
 
         return df
 
 
 # Global singleton tracer
 tracer = ExecutionTracer()
+
+
+def traced_node(name: str, span_kind: str, fn: Callable) -> Any:
+    """
+    Wraps a LangGraph node function with real execution tracing.
+    Exposes both synchronous (.invoke) and asynchronous (.ainvoke / .astream) entry points via RunnableLambda.
+    """
+    import inspect
+    import concurrent.futures
+    from langchain_core.runnables import RunnableLambda
+
+    is_async = inspect.iscoroutinefunction(fn)
+
+    async def async_wrapper(state: Dict[str, Any]) -> Dict[str, Any]:
+        start = time.time()
+        session_id = state.get("session_id", "RUN-UNKNOWN")
+        app_id = state.get("application_id", "APP-UNKNOWN")
+        try:
+            if is_async:
+                result = await fn(state)
+            else:
+                result = fn(state)
+            end = time.time()
+            tracer.record_span(
+                name=name,
+                span_kind=span_kind,
+                start_time=start,
+                end_time=end,
+                inputs={"application_id": app_id, "step_count": state.get("step_count", 0), "intent": state.get("intent")},
+                outputs={"request_status": result.get("request_status"), "ai_recommendation": result.get("ai_recommendation")},
+                run_id=session_id,
+                application_id=app_id,
+                step_id=f"step-{name}",
+            )
+            return result
+        except Exception as e:
+            end = time.time()
+            tracer.record_span(
+                name=name,
+                span_kind=span_kind,
+                start_time=start,
+                end_time=end,
+                inputs={"application_id": app_id},
+                outputs={"error": str(e)},
+                run_id=session_id,
+                application_id=app_id,
+                step_id=f"step-{name}",
+                error=str(e),
+            )
+            raise
+
+    def sync_wrapper(state: Dict[str, Any]) -> Dict[str, Any]:
+        start = time.time()
+        session_id = state.get("session_id", "RUN-UNKNOWN")
+        app_id = state.get("application_id", "APP-UNKNOWN")
+        try:
+            if is_async:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    result = pool.submit(lambda: asyncio.run(fn(state))).result()
+            else:
+                result = fn(state)
+            end = time.time()
+            tracer.record_span(
+                name=name,
+                span_kind=span_kind,
+                start_time=start,
+                end_time=end,
+                inputs={"application_id": app_id, "step_count": state.get("step_count", 0), "intent": state.get("intent")},
+                outputs={"request_status": result.get("request_status"), "ai_recommendation": result.get("ai_recommendation")},
+                run_id=session_id,
+                application_id=app_id,
+                step_id=f"step-{name}",
+            )
+            return result
+        except Exception as e:
+            end = time.time()
+            tracer.record_span(
+                name=name,
+                span_kind=span_kind,
+                start_time=start,
+                end_time=end,
+                inputs={"application_id": app_id},
+                outputs={"error": str(e)},
+                run_id=session_id,
+                application_id=app_id,
+                step_id=f"step-{name}",
+                error=str(e),
+            )
+            raise
+
+    return RunnableLambda(sync_wrapper, afunc=async_wrapper)

@@ -2,15 +2,14 @@
 
 ## 1. Model Details
 - **System Name**: Loan Origination & Underwriting Copilot (BC-AAIE-HACK-02)
-- **System Name**: Loan Origination & Underwriting Copilot (BC-AAIE-HACK-02)
-- **Supported Model Providers (v8 Addendum)**:
-  - **Primary**: Google Gemini API (`gemini`, model: `gemini-2.0-flash` / `gemini-2.5-flash`)
-  - **Secondary (Fallback)**: Groq API (`groq`, model: `qwen/qwen3-32b`, fallback: `openai/gpt-oss-20b`) via OpenAI-compatible endpoint
-- **Provider Resolution & Fallback**: Deterministic, configuration-driven via [`config/model_config.json`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/config/model_config.json) and [`src/llm/provider_resolver.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/llm/provider_resolver.py). Groq is activated only if `GEMINI_API_KEY` is absent or Gemini retries are exhausted. Managed via [`src/llm/client.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/llm/client.py).
+- **Supported Model Providers & Architecture**:
+  - **Google Gemini API (`gemini`, model: `gemini-2.0-flash`)**: Attempted only when `GEMINI_API_KEY` is configured in the environment. If `GEMINI_API_KEY` is not present, Gemini is skipped entirely and Groq is selected directly. If Gemini is configured and fails due to quota exhaustion (429) or API unavailability, execution automatically falls back to Groq.
+  - **Groq API (`groq`, model: `openai/gpt-oss-20b`, fallback: `qwen/qwen3-32b`)**: Open-weights high-throughput inference used directly when Gemini is unconfigured or unavailable, verbally approved by course faculty for automated evaluation without rate limit throttling (see [`docs/instructor-provider-exception.md`](instructor-provider-exception.md)). Models actually evaluated in committed final evidence: `openai/gpt-oss-20b` for agent rationales and DeepEval (`CopilotJudgeLLM`).
+- **Provider Resolution & Fallback**: Deterministic, configuration-driven via [`config/model_config.json`](../config/model_config.json) and [`src/llm/provider_resolver.py`](../src/llm/provider_resolver.py). Every resolution and fallback event is self-disclosed and logged to [`logs/agent_actions.jsonl`](../logs/agent_actions.jsonl) and [`reports/environment.json`](../reports/environment.json).
 - **Orchestration**: LangGraph (StateGraph multi-agent architecture with supervisor pattern)
-- **Tool Protocol**: Model Context Protocol (MCP stdio server via `fastmcp` / `langchain-mcp-adapters`)
+- **Tool Protocol**: Model Context Protocol (FastMCP server consumed through `langchain-mcp-adapters` via connected in-memory client/server protocol session; exposes 2 MCP tools: `compute_affordability`, `get_policy_document` and 1 MCP resource: `policy-corpus://index`)
 - **Temperature**: `0.0` (deterministic explanatory generation)
-- **Strict Role Separation**: The LLM serves **strictly as an explanatory agent**. It never computes affordability numbers, evaluates mathematical thresholds, or assigns final loan decisions. All arithmetic is executed in pure `Decimal` Python, and decisions are written solely by deterministic domain logic in [`src/domain/decisions.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/domain/decisions.py).
+- **Strict Role Separation**: The LLM serves **strictly as an explanatory agent**. It never computes affordability numbers, evaluates mathematical thresholds, or assigns final loan decisions. All arithmetic is executed in pure `Decimal` Python, and decisions are written solely by deterministic domain logic in [`src/domain/decisions.py`](../src/domain/decisions.py).
 
 ## 2. Intended Use
 - **Primary Domain**: Retail banking personal loan origination and underwriting assistance.
@@ -24,8 +23,8 @@
   - Automatically flags policy breaches and routes high-value loans to human underwriters.
 
 ## 3. Data & Synthetic Training Corpus
-- **Application Data**: 100% synthetic loan applications generated for testing and benchmark evaluation in [`data/sample_applications/`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/data/sample_applications/). All applicant identities, incomes, and account numbers are synthetic.
-- **Policy Corpus**: Markdown-structured retail lending policies with YAML frontmatter specifying product scope, effective dates, and quantitative thresholds in [`data/policy_corpus/`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/data/policy_corpus/).
+- **Application Data**: 100% synthetic loan applications generated for testing and benchmark evaluation in [`data/sample_applications/`](..\data\sample_applications). All applicant identities, incomes, and account numbers are synthetic.
+- **Policy Corpus**: Markdown-structured retail lending policies with YAML frontmatter specifying product scope, effective dates, and quantitative thresholds in [`data/policy_corpus/`](..\data\policy_corpus).
 - **PII Governance**: No real personal data is ingested, processed, or logged. Strict regex and named-entity redaction scrubs synthetic PII prior to Phoenix tracing or JSONL log persistence.
 
 ## 4. Limitations & Boundary Conditions
@@ -34,7 +33,7 @@
 - **Corporate / Commercial Out of Scope**: Complex commercial lending, syndicate credit facilities, and collateral liquidation structures are explicitly out of scope.
 
 ## 5. Known Failure Modes & Evidence Citations
-The system's known failure modes have been rigorously identified, cataloged, and mitigated. For detailed traces, root-cause analyses, and committed fixes, refer to [`docs/failure-analysis.md`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/docs/failure-analysis.md):
+The system's known failure modes have been rigorously identified, cataloged, and mitigated. For detailed traces, root-cause analyses, and committed fixes, refer to [`docs/failure-analysis.md`](failure-analysis.md):
 - **FAIL-001 (Policy Selection Boundary / Off-by-One)**: Application on policy boundary date matching an expired policy version. *Mitigation: Strict semi-open interval date matching in `policy_selector.py`.*
 - **FAIL-002 (MCP Tool Timeout / Fragility)**: Tool unavailability during affordability calculation. *Mitigation: Bounded retry, 10s hard timeout, and graceful degradation to `UNABLE_TO_COMPLETE` with `human_review_required = True`.*
 - **FAIL-003 (RAG Retrieval Poisoning / Noise Insertion)**: Out-of-policy retrieved chunks polluting decision context. *Mitigation: Targeted RAG chunk filtering with SHA256 cryptographic text hash validation.*

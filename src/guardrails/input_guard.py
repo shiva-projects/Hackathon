@@ -11,20 +11,26 @@ from src.observability.unified_logger import log_agent_action
 
 # Patterns for prompt injection attacks
 INJECTION_PATTERNS = [
-    re.compile(r"ignore\s+(?:all\s+)?(?:previous\s+)?instructions", re.IGNORECASE),
-    re.compile(r"system\s*:\s*", re.IGNORECASE),
-    re.compile(r"override\s+(?:all\s+)?(?:policy|rules|checks)", re.IGNORECASE),
+    re.compile(r"ignore\s+(?:all\s+)?(?:previous\s+|prior\s+)?instructions", re.IGNORECASE),
+    re.compile(r"(?:disregard|forget|override)\s+(?:all\s+)?(?:prior\s+)?(?:instructions|rules|policy|checks|thresholds|dti)", re.IGNORECASE),
+    re.compile(r"(?:system|admin|root)\s*:\s*", re.IGNORECASE),
     re.compile(r"approve\s+(?:all|every)\s+loans?", re.IGNORECASE),
-    re.compile(r"disregard\s+(?:dti|rules|thresholds)", re.IGNORECASE),
-    re.compile(r"you\s+are\s+now\s+in\s+developer\s+mode", re.IGNORECASE),
-    re.compile(r"bypass\s+(?:underwriting|risk|guardrails)", re.IGNORECASE),
+    re.compile(r"you\s+are\s+now\s+(?:in\s+)?(?:developer|god|unrestricted|jailbreak|dan)\s+mode", re.IGNORECASE),
+    re.compile(r"bypass\s+(?:underwriting|risk|guardrails|policy|compliance)", re.IGNORECASE),
+    re.compile(r"(?:act|pretend)\s+as\s+(?:an?\s+)?(?:unrestricted|lenient|different)\s+(?:loan\s+officer|ai|system)", re.IGNORECASE),
+    re.compile(r"new\s+rule\s*:\s*(?:auto-?approve|always\s+approve)", re.IGNORECASE),
 ]
 
-# Patterns for cross-applicant data exfiltration attempts
+# Patterns for cross-applicant data exfiltration attempts (explicit IDs, indirect & paraphrased)
 CROSS_APPLICANT_PATTERNS = [
-    re.compile(r"(?:show|get|view|reveal|read)\s+(?:me\s+)?(?:applicant|application)\s+([A-Z0-9\-_]+)", re.IGNORECASE),
-    re.compile(r"(?:what\s+is|give\s+me)\s+([A-Z0-9\-_]+)'?s?\s+(?:income|data|account|loan|details)", re.IGNORECASE),
-    re.compile(r"transfer\s+(?:funds|money)\s+from\s+(?:account|applicant)", re.IGNORECASE),
+    re.compile(r"(?:show|get|view|reveal|read|fetch|pull|inspect|compare\s+(?:with|to)?)\s+(?:me\s+)?(?:applicant|application|app|file|record|profile)?\s*([A-Z]{2,5}-\d{2,5})", re.IGNORECASE),
+    re.compile(r"(?:what\s+is|give\s+me|find|extract)\s+(?:(?:application|applicant)\s+)?([A-Z]{2,5}-\d{2,5})'?s?\s+(?:income|data|account|loan|details|balance|status|history|report)", re.IGNORECASE),
+    re.compile(r"(?:what\s+is|give\s+me|find|extract)\s+([A-Z0-9\-_]+)'s\s+(?:income|data|account|loan|details|balance|status|history|report)", re.IGNORECASE),
+    re.compile(r"\b(?:switch|change)\s+(?:context\s+to\s+|to\s+)?(?:application\s+|applicant\s+)?([A-Z]{2,5}-\d{2,5})", re.IGNORECASE),
+    re.compile(r"transfer\s+(?:funds|money|balance)\s+(?:from|to)\s+(?:account|applicant|customer)", re.IGNORECASE),
+    re.compile(r"(?:what\s+(?:was|is)|show\s+me|tell\s+me)\s+(?:the\s+)?(?:other|prior|another|second|different)\s+(?:applicant|borrower|customer|user|client|person)'?s?\s+(?:income|loan|rate|decision|details|score|balance|status)", re.IGNORECASE),
+    re.compile(r"(?:compare\s+(?:my\s+)?(?:rate|loan|income|profile)\s+with|how\s+does\s+my\s+application\s+compare\s+to)\s+(?:the\s+)?(?:other|another|previous)\s+(?:applicant|borrower|customer|loan|case)", re.IGNORECASE),
+    re.compile(r"(?:access|dump|export|leak)\s+(?:records|data|files)\s+of\s+(?:other|all|another)\s+(?:applicants?|borrowers?|customers?)", re.IGNORECASE),
 ]
 
 
@@ -89,6 +95,9 @@ def screen_input(
             injection_found = True
             break
 
+    from src.context.quarantine import quarantine_untrusted_text
+    quarantined = quarantine_untrusted_text(raw_text)
+
     if injection_found:
         log_agent_action(
             actor="input_guard",
@@ -101,7 +110,7 @@ def screen_input(
         )
         return InputGuardResult(
             is_safe=False,
-            quarantined_text=f"<QUARANTINED_DATA>{raw_text}</QUARANTINED_DATA>",
+            quarantined_text=quarantined,
             rejection_reason="SECURITY_SENSITIVE_REQUEST",
             injection_detected=True,
         )
@@ -109,5 +118,5 @@ def screen_input(
     # Clean text safely wrapped in quarantine container
     return InputGuardResult(
         is_safe=True,
-        quarantined_text=f"<QUARANTINED_DATA>{raw_text}</QUARANTINED_DATA>",
+        quarantined_text=quarantined,
     )

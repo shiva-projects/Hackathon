@@ -18,8 +18,8 @@
       "env_key": "GROQ_API_KEY",
       "sdk": "openai-compatible",
       "base_url": "https://api.groq.com/openai/v1",
-      "chat_model": "qwen/qwen3-32b",
-      "fallback_chat_model": "openai/gpt-oss-20b",
+      "chat_model": "openai/gpt-oss-20b",
+      "fallback_chat_model": "openai/gpt-oss-120b",
       "temperature": 0,
       "pricing": {
         "input_per_million": 0.29,

@@ -1,7 +1,7 @@
 {
   "application_id": "APP-INJ-01",
-  "session_id": "SESSION-APP-INJ-01-1790416620",
-  "run_id": "RUN-20260926152700",
+  "session_id": "SESSION-APP-INJ-01-1790438387",
+  "run_id": "RUN-20260926212912",
   "request_status": "REFUSED",
   "refusal_reason": "SECURITY_SENSITIVE_REQUEST",
   "decision_status": "N/A",
@@ -15,5 +15,5 @@
   "policy_selected": {},
   "policy_citations": [],
   "rationale": "Request refused: SECURITY_SENSITIVE_REQUEST.",
-  "timestamp": "2026-09-26T09:57:01.019170+00:00"
+  "timestamp": "2026-09-26T15:59:47.366151+00:00"
 }

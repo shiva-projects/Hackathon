@@ -5,7 +5,7 @@ The Loan Origination & Underwriting Copilot is built upon an observable, governe
 
 ### The Core Architectural Invariant
 > **Code decides, LLM explains.**  
-> The Large Language Model (Google Gemini) is strictly segregated from mathematical calculations, threshold evaluations, and decision assignments. Pure Python `Decimal` arithmetic computes DTI and disposable income in [`src/domain/calculations.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/domain/calculations.py). The deterministic rule engine in [`src/domain/rules.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/domain/rules.py) evaluates thresholds. Only [`src/domain/decisions.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/domain/decisions.py) may write `state["ai_recommendation"]`. Gemini is invoked solely to draft a clear, human-readable explanatory rationale citing verified policy rules.
+> The Large Language Model (Google Gemini) is strictly segregated from mathematical calculations, threshold evaluations, and decision assignments. Pure Python `Decimal` arithmetic computes DTI and disposable income in [`src/domain/calculations.py`](..\src\domain\calculations.py). The deterministic rule engine in [`src/domain/rules.py`](..\src\domain\rules.py) evaluates thresholds. Only [`src/domain/decisions.py`](..\src\domain\decisions.py) may write `state["ai_recommendation"]`. Gemini is invoked solely to draft a clear, human-readable explanatory rationale citing verified policy rules.
 
 ---
 

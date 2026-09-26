@@ -107,7 +107,7 @@ def health():
 
 
 @app.post("/api/v1/underwrite")
-def underwrite_application(payload: UnderwriteRequest):
+async def underwrite_application(payload: UnderwriteRequest):
     """
     Evaluates a loan application through the multi-agent graph.
     Returns the complete structured underwriting decision and state summary.
@@ -125,7 +125,9 @@ def underwrite_application(payload: UnderwriteRequest):
             app_dict["free_text"] = raw_text
         app_obj = load_application_from_dict(app_dict)
         facts = app_obj.to_facts_dict()
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Could not parse strict application schema ({e}), using raw applicant data")
         facts = dict(payload.applicant_data)
         facts["application_id"] = app_id
         facts["requester_id"] = payload.actor_id
@@ -147,7 +149,7 @@ def underwrite_application(payload: UnderwriteRequest):
     cfg = get_session_config(session_id)
 
     try:
-        final_state = graph.invoke(initial_state, config=cfg)
+        final_state = await graph.ainvoke(initial_state, config=cfg)
         assert_state_invariants(final_state)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pipeline execution error: {str(e)}")
@@ -179,8 +181,7 @@ def underwrite_application(payload: UnderwriteRequest):
 async def underwrite_stream(payload: UnderwriteRequest):
     """
     Executes loan underwriting while streaming node transitions as Server-Sent Events (SSE).
-    Clients receive real-time updates as supervisor, policy, eligibility, risk, and decision
-    nodes execute.
+    Uses native LangGraph async generator .astream() without thread-blocking.
     """
     app_id = payload.application_id
     raw_text = payload.free_text or payload.applicant_data.get("free_text", "")
@@ -195,7 +196,9 @@ async def underwrite_stream(payload: UnderwriteRequest):
             app_dict["free_text"] = raw_text
         app_obj = load_application_from_dict(app_dict)
         facts = app_obj.to_facts_dict()
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Could not parse strict application schema ({e}), using raw applicant data")
         facts = dict(payload.applicant_data)
         facts["application_id"] = app_id
         facts["requester_id"] = payload.actor_id
@@ -216,12 +219,10 @@ async def underwrite_stream(payload: UnderwriteRequest):
     graph = get_graph()
     cfg = get_session_config(session_id)
 
-    q = asyncio.Queue()
-    loop = asyncio.get_running_loop()
-
-    def run_worker():
+    async def sse_generator():
+        yield f"event: connect\ndata: {json.dumps({'status': 'connected', 'application_id': app_id, 'session_id': session_id})}\n\n"
         try:
-            for node_dict in graph.stream(initial_state, config=cfg, stream_mode="updates"):
+            async for node_dict in graph.astream(initial_state, config=cfg, stream_mode="updates"):
                 for node_name, node_update in node_dict.items():
                     event_data = {
                         "event": "node_update",
@@ -236,26 +237,11 @@ async def underwrite_stream(payload: UnderwriteRequest):
                     if "request_status" in node_update:
                         event_data["request_status"] = node_update["request_status"]
 
-                    loop.call_soon_threadsafe(q.put_nowait, event_data)
+                    yield f"event: node_update\ndata: {json.dumps(sanitize_data(event_data))}\n\n"
 
-            loop.call_soon_threadsafe(q.put_nowait, {"event": "stream_end"})
+            yield f"event: stream_end\ndata: {json.dumps({'event': 'stream_end'})}\n\n"
         except Exception as exc:
-            loop.call_soon_threadsafe(q.put_nowait, {"event": "error", "error": str(exc)})
-        finally:
-            loop.call_soon_threadsafe(q.put_nowait, None)
-
-    threading.Thread(target=run_worker, daemon=True).start()
-
-    async def sse_generator():
-        yield f"event: connect\ndata: {json.dumps({'status': 'connected', 'application_id': app_id, 'session_id': session_id})}\n\n"
-        while True:
-            item = await q.get()
-            if item is None:
-                break
-            if item.get("event") == "error":
-                yield f"event: error\ndata: {json.dumps(item)}\n\n"
-                break
-            yield f"event: {item.get('event', 'message')}\ndata: {json.dumps(sanitize_data(item))}\n\n"
+            yield f"event: error\ndata: {json.dumps({'event': 'error', 'error': str(exc)})}\n\n"
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 

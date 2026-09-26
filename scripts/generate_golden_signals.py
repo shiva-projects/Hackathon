@@ -22,12 +22,14 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 def compute_percentiles(latencies: list) -> dict:
-    if not latencies:
-        return {"p50_ms": 0.0, "p95_ms": 0.0}
-    arr = np.array(latencies, dtype=float)
+    valid = [float(x) for x in latencies if x is not None and float(x) > 0]
+    if not valid:
+        return {"p50_ms": None, "p95_ms": None, "count": 0}
+    arr = np.array(valid, dtype=float)
     return {
         "p50_ms": round(float(np.percentile(arr, 50)), 2),
         "p95_ms": round(float(np.percentile(arr, 95)), 2),
+        "count": len(valid),
     }
 
 
@@ -49,24 +51,25 @@ def generate_golden_signals(
         export_traces(traces_path)
         df = pd.read_parquet(t_path)
 
-    # Group latencies by span_kind (thinking, acting, tool)
-    thinking_lats = df[df["span_kind"] == "thinking"]["latency_ms"].tolist() if "span_kind" in df else []
-    acting_lats = df[df["span_kind"] == "acting"]["latency_ms"].tolist() if "span_kind" in df else []
-    tool_lats = df[df["span_kind"] == "tool"]["latency_ms"].tolist() if "span_kind" in df else []
+    # Group latencies by span_kind (thinking, acting, tool) using real measured values only
+    thinking_lats = [float(x) for x in df[df["span_kind"] == "thinking"]["latency_ms"].dropna().tolist() if float(x) > 0] if "span_kind" in df else []
+    acting_lats = [float(x) for x in df[df["span_kind"] == "acting"]["latency_ms"].dropna().tolist() if float(x) > 0] if "span_kind" in df else []
+    tool_lats = [float(x) for x in df[df["span_kind"] == "tool"]["latency_ms"].dropna().tolist() if float(x) > 0] if "span_kind" in df else []
 
-    # Provide realistic baseline numbers if sparse
-    if not thinking_lats:
-        thinking_lats = [120.0, 150.0, 180.0, 210.0]
-    if not acting_lats:
-        acting_lats = [35.0, 42.0, 50.0, 65.0]
-    if not tool_lats:
-        tool_lats = [12.0, 15.0, 18.0, 25.0]
+    trace_source = "reconstructed"
+    if "trace_source" in df.columns:
+        sources = set(df["trace_source"].dropna().tolist())
+        if "phoenix" in sources and len(sources) == 1:
+            trace_source = "phoenix"
+        elif "measured" in sources:
+            trace_source = "reconstructed_from_measured_logs"
 
+    all_lats = thinking_lats + acting_lats + tool_lats
     latency_metrics = {
         "thinking": compute_percentiles(thinking_lats),
         "acting": compute_percentiles(acting_lats),
         "tool": compute_percentiles(tool_lats),
-        "end_to_end": compute_percentiles(thinking_lats + acting_lats + tool_lats),
+        "end_to_end": compute_percentiles(all_lats),
     }
 
     # 2. Token counts & Cost estimation from reports/cost_config.json matching reports/environment.json
@@ -100,9 +103,28 @@ def generate_golden_signals(
             "pricing_source": "https://ai.google.dev/pricing",
         }
 
-    # Base token metrics across run
-    input_tokens = 24500
-    output_tokens = 4800
+    # Token counts — read from logs/llm_calls.jsonl written by src/llm/client.py
+    # on every real LLM invocation. Falls back to estimates when no live calls occurred.
+    llm_log_path = Path("logs/llm_calls.jsonl")
+    input_tokens = 0
+    output_tokens = 0
+    tokens_source = "measured"
+    if llm_log_path.exists() and llm_log_path.stat().st_size > 0:
+        for line in llm_log_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+                input_tokens += int(rec.get("input_tokens", 0))
+                output_tokens += int(rec.get("output_tokens", 0))
+            except Exception:
+                pass
+    if input_tokens == 0 and output_tokens == 0:
+        # No live calls — use conservative estimates and mark as such
+        input_tokens = 24500
+        output_tokens = 4800
+        tokens_source = "estimated_no_live_key"
+
     cost_in = (input_tokens / 1_000_000) * float(cost_cfg.get("input_price_per_million", 0.10))
     cost_out = (output_tokens / 1_000_000) * float(cost_cfg.get("output_price_per_million", 0.40))
     total_cost_usd = round(cost_in + cost_out, 6)
@@ -124,6 +146,7 @@ def generate_golden_signals(
     golden_signals = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_run_id": "RUN-PHOENIX-CURRENT",
+        "trace_source": trace_source,
         "provider": resolved_provider,
         "model": cost_cfg.get("model", "gemini-2.0-flash"),
         "latency_by_span_type": latency_metrics,
@@ -131,6 +154,7 @@ def generate_golden_signals(
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": input_tokens + output_tokens,
+            "source": tokens_source,
         },
         "cost_governance": {
             "cost_config_used": cost_config_path,
@@ -183,13 +207,18 @@ def generate_golden_signals(
         costs = [r["cost_usd"] for r in dashboard_rows]
         ax2.bar(categories, costs, color=['#059669', '#9CA3AF', '#D97706'], width=0.5)
         ax2.set_ylabel('Cost (USD)')
-        ax2.set_title('Token Cost Breakdown (Gemini Flash)')
+        model_name = cost_cfg.get("model", resolved_provider)
+        ax2.set_title(f'Token Cost Breakdown ({resolved_provider.upper()} - {model_name})')
         ax2.grid(True, linestyle='--', alpha=0.5)
 
+        fig.suptitle('Locally Rendered Phoenix-Derived Telemetry Dashboard', fontsize=11)
         plt.tight_layout()
-        plt.savefig(png_path, dpi=150)
+        plt.savefig(Path("reports/phoenix_derived_dashboard.png"), dpi=150)
+        # If reports/dashboard.png does not exist or is being initialized, save here
+        if not png_path.exists():
+            plt.savefig(png_path, dpi=150)
         plt.close()
-        print(f"Dashboard visualization saved to: {png_path}")
+        print(f"Locally rendered dashboard visualization saved to: reports/phoenix_derived_dashboard.png")
     except Exception as e:
         print(f"Warning: could not render dashboard image: {e}")
 

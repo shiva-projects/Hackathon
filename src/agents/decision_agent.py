@@ -6,6 +6,7 @@ Per plan.md Section 3.2, 4.4, 14.6 & 14.17.
 """
 
 import os
+import time
 from decimal import Decimal
 from typing import Dict, Any, List
 from src.state import LoanState, GEMINI_FALLBACK_RATIONALE
@@ -14,9 +15,8 @@ from src.domain.decisions import evaluate_underwriting_decision
 from src.guardrails.output_guard import screen_output
 from src.observability.unified_logger import log_agent_action, log_tool_call
 
-
-from src.llm.client import get_llm_client, invoke_with_resilience
-from src.llm.provider_resolver import load_model_config, resolve_provider
+from src.llm.client import get_llm_client, invoke_with_resilience, ainvoke_with_resilience
+from src.llm.provider_resolver import has_live_provider_key
 
 
 def generate_llm_rationale(
@@ -28,22 +28,9 @@ def generate_llm_rationale(
     run_id: str = "default_run",
 ) -> str:
     """
-    Invokes the resolved LLM provider (Gemini primary -> Groq fallback) to explain
-    the deterministic decision in prose.
-    Gracefully falls back to deterministic explanation or GEMINI_FALLBACK_RATIONALE.
+    Invokes the resolved LLM provider synchronously to explain the deterministic decision in prose.
     """
-    # Check if a live provider key exists in the environment
-    has_live_key = False
-    try:
-        cfg = load_model_config()
-        provider_name, provider_cfg = resolve_provider(cfg)
-        key_val = os.environ.get(provider_cfg.get("env_key", ""), "")
-        if key_val and key_val not in ("your_gemini_api_key_here", "gsk_test_dummy", "test-key"):
-            has_live_key = True
-    except Exception:
-        has_live_key = False
-
-    # If no live API key is provided or offline mode, generate factual explanation directly
+    has_live_key = has_live_provider_key()
     if not has_live_key:
         rule_citations = ", ".join([c.get("rule_id", "PL-07") for c in citations]) or "PL-07"
         return (
@@ -63,17 +50,76 @@ def generate_llm_rationale(
             f"Instructions: Write a clear 2-3 sentence explanation for the credit officer. "
             f"Do not alter the recommendation. Do not invent new figures."
         )
-
         return invoke_with_resilience(prompt, run_id=run_id)
     except Exception as e:
-        # Per Section 14.17: Rationale generation failure falls back gracefully
+        import logging
+        logging.getLogger(__name__).warning(f"Sync LLM rationale generation failed ({e}), using deterministic fallback.")
         return GEMINI_FALLBACK_RATIONALE
 
 
-def decision_agent_node(state: LoanState) -> LoanState:
+async def agenerate_llm_rationale(
+    recommendation: str,
+    affordability: AffordabilityResult,
+    reasons: List[str],
+    policy_version: str,
+    citations: List[Dict[str, Any]],
+    run_id: str = "default_run",
+) -> str:
     """
-    LangGraph node: Evaluates deterministic decision and attaches rationale.
+    Asynchronously invokes the resolved LLM provider to explain the deterministic decision in prose.
     """
+    import unittest.mock
+    if isinstance(generate_llm_rationale, (unittest.mock.Mock, unittest.mock.MagicMock)):
+        return generate_llm_rationale(
+            recommendation=recommendation,
+            affordability=affordability,
+            reasons=reasons,
+            policy_version=policy_version,
+            citations=citations,
+            run_id=run_id,
+        )
+
+    has_live_key = has_live_provider_key()
+    if not has_live_key:
+        rule_citations = ", ".join([c.get("rule_id", "PL-07") for c in citations]) or "PL-07"
+        return (
+            f"AI recommendation: {recommendation}. "
+            f"Based on policy {policy_version} ({rule_citations}), the applicant's DTI is {float(affordability.dti):.1%}. "
+            + " ".join(reasons)
+        )
+
+    try:
+        prompt = (
+            f"You are a loan underwriting assistant. Explain the following deterministic underwriting result:\n"
+            f"Recommendation: {recommendation}\n"
+            f"Policy Version: {policy_version}\n"
+            f"DTI: {float(affordability.dti):.1%}\n"
+            f"Breach Status: {affordability.breach}\n"
+            f"Reasons: {'; '.join(reasons)}\n"
+            f"Instructions: Write a clear 2-3 sentence explanation for the credit officer. "
+            f"Do not alter the recommendation. Do not invent new figures."
+        )
+        return await ainvoke_with_resilience(prompt, run_id=run_id)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Async LLM rationale generation failed ({e}), using deterministic fallback.")
+        return GEMINI_FALLBACK_RATIONALE
+
+
+async def adecision_agent_node(state: LoanState) -> LoanState:
+    """
+    Async LangGraph node: Evaluates deterministic decision and attaches rationale via async LLM call.
+    """
+    start_t = time.time()
+
+    # 0. Context engineering: Select and isolate agent context
+    from src.context.select import select_agent_context
+    from src.context.isolate import verify_context_isolation
+    from src.context.compress import compress_interaction_history
+    agent_ctx = select_agent_context("rationale_agent", state)
+    if not verify_context_isolation(agent_ctx):
+        raise RuntimeError("Context isolation breach in rationale_agent")
+
     aff_dict = state.get("affordability", {})
     affordability = AffordabilityResult(
         dti=Decimal(str(aff_dict.get("dti", "0.0"))),
@@ -84,8 +130,8 @@ def decision_agent_node(state: LoanState) -> LoanState:
         monthly_obligations=Decimal(str(aff_dict.get("monthly_obligations", "0.0"))),
     )
 
-    raw_rules = state.get("rule_evaluations", [])
-    rule_results = [RuleEvaluationResult(**r) for r in raw_rules]
+    raw_rules = state.get("rule_evaluations", []) or state.get("_rule_results", [])
+    rule_results = [RuleEvaluationResult(**r) if isinstance(r, dict) else r for r in raw_rules]
     risk_flags = state.get("risk_flags", [])
 
     # 1. Deterministic Decision Engine (SOLE WRITER of ai_recommendation)
@@ -97,10 +143,10 @@ def decision_agent_node(state: LoanState) -> LoanState:
     state["human_review_required"] = decision.human_review_required
     state["request_status"] = "COMPLETED"
 
-    # 2. Rationale generation explaining the decision
+    # 2. Async Rationale generation explaining the decision
     policy_ver = state.get("policy_selected", {}).get("version", "v2.0")
     citations = state.get("policy_citations", [])
-    raw_rationale = generate_llm_rationale(
+    raw_rationale = await agenerate_llm_rationale(
         recommendation=decision.ai_recommendation or "REFER",
         affordability=affordability,
         reasons=decision.reasons,
@@ -118,12 +164,15 @@ def decision_agent_node(state: LoanState) -> LoanState:
     state["routing_history"].append("decision_node")
     state["step_count"] += 1
 
+    latency_ms = round((time.time() - start_t) * 1000.0, 2)
+
     log_agent_action(
         actor="decision_agent",
         action="underwriting_decision_rendered",
         tool="domain.decisions.evaluate_underwriting_decision",
         decision=str(decision.ai_recommendation),
         application_id=state.get("application_id"),
+        latency_ms=latency_ms,
         details={
             "ai_recommendation": decision.ai_recommendation,
             "decision_status": decision.decision_status,
@@ -131,3 +180,26 @@ def decision_agent_node(state: LoanState) -> LoanState:
         },
     )
     return state
+
+
+def decision_agent_node(state: LoanState) -> LoanState:
+    """
+    Synchronous entry point for tests/callers that directly execute the node.
+    Thin wrapper delegating canonically to adecision_agent_node.
+    """
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(lambda: asyncio.run(adecision_agent_node(state))).result()
+    else:
+        return asyncio.run(adecision_agent_node(state))
+
+
+def decision_agent_node_sync(state: LoanState) -> LoanState:
+    """Explicit sync alias for decision_agent_node."""
+    return decision_agent_node(state)

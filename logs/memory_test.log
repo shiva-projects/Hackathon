@@ -24,3 +24,33 @@
 [2026-09-26T09:33:03.632132+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
 [2026-09-26T09:56:46.826357+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
 [2026-09-26T09:56:46.832925+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T09:59:38.110763+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T09:59:38.115762+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T11:57:25.047711+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T11:57:25.056858+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T12:02:13.919151+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T12:02:13.926498+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T12:05:18.344421+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T12:05:18.352239+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T12:08:04.054626+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T12:08:04.063536+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T12:24:42.783156+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T12:24:42.790959+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T13:22:31.813169+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T13:22:31.819612+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T14:49:44.026788+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T14:49:44.034258+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T14:57:07.233329+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T14:57:07.239745+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T15:03:18.751025+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T15:03:18.758651+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T15:04:33.511754+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T15:04:33.517375+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T15:22:24.615042+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T15:22:24.621242+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T15:45:01.218085+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T15:45:01.224771+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T16:04:07.176879+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T16:04:07.183151+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.
+[2026-09-26T17:32:37.436517+00:00] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.
+[2026-09-26T17:32:37.443766+00:00] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.

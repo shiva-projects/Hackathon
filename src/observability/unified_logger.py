@@ -98,10 +98,11 @@ def log_agent_action(
     run_id: str = "default_run",
     application_id: Optional[str] = None,
     details: Optional[Dict[str, Any]] = None,
+    latency_ms: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Writes a consequential agent action/refusal to logs/agent_actions.jsonl.
-    Per AC-10.
+    Per AC-10. Persists measured wall-clock latency_ms when provided.
     """
     record = {
         "timestamp": get_iso_timestamp(),
@@ -111,6 +112,7 @@ def log_agent_action(
         "action": action,
         "tool": tool,
         "decision": decision,
+        "latency_ms": round(float(latency_ms), 2) if latency_ms is not None else None,
         "details": details or {},
     }
     return log_event("agent_action", "logs/agent_actions.jsonl", record)

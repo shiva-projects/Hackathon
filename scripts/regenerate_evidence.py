@@ -16,6 +16,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from scripts.export_traces import export_traces
 from scripts.run_eval import run_eval
 from scripts.generate_golden_signals import generate_golden_signals
@@ -63,6 +69,12 @@ def main():
         output_json_path="reports/golden_signals.json",
         output_csv_path="reports/dashboard_data.csv",
     )
+
+    print("\n" + "=" * 60)
+    print("STEP 4b: CAPTURING GENUINE PHOENIX UI SCREENSHOT (reports/dashboard.png)")
+    print("=" * 60)
+    from scripts.capture_phoenix_ui import capture_phoenix_ui
+    capture_phoenix_ui(output_path="reports/dashboard.png")
 
     print("\n" + "=" * 60)
     print("STEP 5: VERIFYING COMMITTED EVIDENCE (scripts/verify_evidence.py)")

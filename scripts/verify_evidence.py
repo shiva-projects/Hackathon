@@ -96,6 +96,9 @@ KNOWN_TOOLS = {
     "verify_income",
     "retrieve_policy_chunks",
     "faulty_mcp_call",
+    # MCP client tool names (namespaced with mcp. prefix by mcp_server/client.py)
+    "mcp.get_policy_document",
+    "mcp.compute_affordability",
 }
 
 RAW_PII_PATTERNS = [

@@ -27,7 +27,9 @@ class LongTermMemoryStore:
             try:
                 with open(self.storage_path, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except Exception:
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Could not load long-term memory store from {self.storage_path}: {e}")
                 return {}
         return {}
 

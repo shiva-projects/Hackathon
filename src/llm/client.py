@@ -2,39 +2,48 @@
 Centralized LLM Client Factory and Resilient Choke Point.
 Per v8 Addendum Section 4, 6, 9, 10 & 11.
 Single application-level entry point for model calls across the copilot.
+Request-scoped provider state using contextvars.
 """
 
 import os
 import json
 import time
+import asyncio
+import contextvars
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional, Set, Tuple
 
-from src.llm.provider_resolver import load_model_config, resolve_provider
+from src.llm.provider_resolver import load_model_config, resolve_provider, validate_provider_environment
 from src.observability.unified_logger import log_agent_action
 
-# Module-level run provider state (run-level switching per Section 10)
-_current_run_provider: Optional[str] = None
-_tried_providers_this_run: Set[str] = set()
+# Request-scoped provider state (using ContextVar to prevent concurrency collisions)
+_request_provider: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("request_provider", default=None)
+_request_tried_providers: contextvars.ContextVar[Optional[Set[str]]] = contextvars.ContextVar("request_tried_providers", default=None)
 
 
 def get_run_provider() -> Optional[str]:
-    """Returns the current run-level active provider."""
-    global _current_run_provider
-    return _current_run_provider
+    """Returns the current request-scoped active provider."""
+    return _request_provider.get()
 
 
 def set_run_provider(provider: str) -> None:
-    """Sets the active run-level provider."""
-    global _current_run_provider
-    _current_run_provider = provider
+    """Sets the request-scoped active provider."""
+    _request_provider.set(provider)
 
 
 def reset_run_provider() -> None:
-    """Resets the active run-level provider and tried set (for new runs/tests)."""
-    global _current_run_provider, _tried_providers_this_run
-    _current_run_provider = None
-    _tried_providers_this_run = set()
+    """Resets the request-scoped active provider and tried set."""
+    _request_provider.set(None)
+    _request_tried_providers.set(set())
+
+
+def _get_tried_providers() -> Set[str]:
+    tried = _request_tried_providers.get()
+    if tried is None:
+        tried = set()
+        _request_tried_providers.set(tried)
+    return tried
 
 
 class LLMClientHandle:
@@ -55,7 +64,7 @@ class LLMClientHandle:
         self.config = config or {}
 
     def invoke(self, prompt: str) -> str:
-        """Invokes the underlying client, returning string response content."""
+        """Invokes the underlying client synchronously, returning string response content."""
         if hasattr(self.client, "invoke"):
             response = self.client.invoke(prompt)
             if hasattr(response, "content"):
@@ -64,6 +73,19 @@ class LLMClientHandle:
         elif callable(self.client):
             return str(self.client(prompt))
         raise AttributeError(f"Client for provider {self.provider} does not support invoke() or __call__")
+
+    async def ainvoke(self, prompt: str) -> str:
+        """Asynchronously invokes the underlying client, returning string response content."""
+        if hasattr(self.client, "ainvoke"):
+            response = await self.client.ainvoke(prompt)
+            if hasattr(response, "content"):
+                return str(response.content)
+            return str(response)
+        elif hasattr(self.client, "invoke"):
+            return await asyncio.to_thread(self.invoke, prompt)
+        elif callable(self.client):
+            return await asyncio.to_thread(self.client, prompt)
+        raise AttributeError(f"Client for provider {self.provider} does not support ainvoke() or invoke()")
 
 
 def _build_gemini_client(provider_cfg: Dict[str, Any]) -> Any:
@@ -98,25 +120,25 @@ def get_llm_client(
 ) -> LLMClientHandle:
     """
     Central LLM factory choke point per v8 specification.
-    Resolves provider deterministically, maintains run-level provider affinity,
+    Resolves provider deterministically, maintains request-scoped provider affinity,
     and returns a ready-to-use LLMClientHandle.
     """
-    global _current_run_provider
     config = load_model_config(config_path)
 
+    active_provider = get_run_provider()
     if force_provider:
         provider_name = force_provider
         provider_cfg = config.get("providers", {}).get(provider_name)
         if not provider_cfg:
             raise RuntimeError(f"Unknown forced provider '{provider_name}' in model_config.json")
-    elif _current_run_provider:
-        provider_name = _current_run_provider
+    elif active_provider:
+        provider_name = active_provider
         provider_cfg = config.get("providers", {}).get(provider_name)
         if not provider_cfg:
             raise RuntimeError(f"Unknown active run provider '{provider_name}' in model_config.json")
     else:
         provider_name, provider_cfg = resolve_provider(config)
-        _current_run_provider = provider_name
+        set_run_provider(provider_name)
 
     primary_name = config.get("resolution_order", ["gemini"])[0]
     if provider_name == primary_name:
@@ -140,62 +162,93 @@ def get_llm_client(
     )
 
 
+def _record_llm_call_metadata(
+    current_provider: str,
+    model: str,
+    prompt: str,
+    result: str,
+    start_time: float,
+    end_time: float,
+    run_id: str,
+) -> None:
+    latency_ms = round((end_time - start_time) * 1000.0, 2)
+    in_tok = max(1, len(prompt) // 4)
+    out_tok = max(1, len(str(result)) // 4)
+
+    # Record real thinking span with measured wall-clock latency
+    from src.observability.tracing import tracer
+    tracer.record_span(
+        name=f"llm.{current_provider}",
+        span_kind="thinking",
+        start_time=start_time,
+        end_time=end_time,
+        inputs={"prompt_preview": prompt[:100], "input_tokens": in_tok},
+        outputs={"result_preview": str(result)[:100], "output_tokens": out_tok},
+        run_id=run_id,
+        step_id=f"step-llm-{current_provider}",
+    )
+
+    # Log token usage & exact measured latency to logs/llm_calls.jsonl
+    llm_log_path = Path("logs/llm_calls.jsonl")
+    llm_log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(llm_log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "run_id": run_id,
+            "provider": current_provider,
+            "model": model,
+            "input_tokens": in_tok,
+            "output_tokens": out_tok,
+            "latency_ms": latency_ms,
+        }) + "\n")
+
+
 def invoke_with_resilience(
     prompt: str,
     run_id: str = "default_run",
     config_path: str = "config/model_config.json",
 ) -> str:
     """
-    Executes an LLM prompt with bounded retry and automatic provider fallback.
-    Per v8 Section 9 & 10:
-      1. Tries current provider up to max_attempts_per_provider
-      2. On retry exhaustion, looks for the next configured provider with a live key
-      3. If found, logs 'provider_fallback' to logs/agent_actions.jsonl, locks new provider for the run, and retries
-      4. If all providers exhausted, raises RuntimeError for upstream fallback handling
+    Synchronously executes an LLM prompt with bounded retry and request-scoped provider fallback.
     """
-    global _current_run_provider, _tried_providers_this_run
     config = load_model_config(config_path)
     retry_cfg = config.get("retry_before_provider_switch", {})
     max_attempts = int(retry_cfg.get("max_attempts_per_provider", 2))
 
-    # Ensure initial provider is resolved
-    if not _current_run_provider:
+    if not get_run_provider():
         handle = get_llm_client(config_path=config_path)
-        _current_run_provider = handle.provider
+        set_run_provider(handle.provider)
 
     resolution_order = config.get("resolution_order", ["gemini", "groq"])
     providers = config.get("providers", {})
+    tried = _get_tried_providers()
 
     while True:
-        current_provider = _current_run_provider
-        _tried_providers_this_run.add(current_provider)
+        current_provider = get_run_provider()
+        tried.add(current_provider)
         handle = get_llm_client(force_provider=current_provider, config_path=config_path)
 
-        # Attempt calls with bounded retries
-        success = False
         last_error = None
-
         for attempt in range(1, max_attempts + 1):
+            start_time = time.time()
             try:
                 result = handle.invoke(prompt)
+                end_time = time.time()
+                _record_llm_call_metadata(current_provider, handle.model, prompt, result, start_time, end_time, run_id)
                 return result
             except Exception as e:
                 last_error = e
-                # Backoff slightly before next attempt
                 time.sleep(0.05)
 
-        # Retries exhausted for current_provider
-        # Look for the next configured provider not yet tried this run with an available key
         next_provider = None
         for cand in resolution_order:
-            if cand not in _tried_providers_this_run and cand in providers:
+            if cand not in tried and cand in providers:
                 cand_key = providers[cand].get("env_key")
                 if cand_key and os.environ.get(cand_key):
                     next_provider = cand
                     break
 
         if next_provider:
-            # Switch provider at run-level
             now_iso = datetime.now(timezone.utc).isoformat()
             log_agent_action(
                 actor="llm_client",
@@ -211,11 +264,78 @@ def invoke_with_resilience(
                     "timestamp": now_iso,
                 },
             )
-            _current_run_provider = next_provider
-            # Loop continues with next_provider
+            set_run_provider(next_provider)
         else:
-            # All providers exhausted
             raise RuntimeError(
-                f"All configured LLM providers exhausted retries ({', '.join(_tried_providers_this_run)}). "
+                f"All configured LLM providers exhausted retries ({', '.join(tried)}). "
+                f"Last error: {last_error}"
+            )
+
+
+async def ainvoke_with_resilience(
+    prompt: str,
+    run_id: str = "default_run",
+    config_path: str = "config/model_config.json",
+) -> str:
+    """
+    Asynchronously executes an LLM prompt with bounded retry and request-scoped provider fallback.
+    """
+    config = load_model_config(config_path)
+    retry_cfg = config.get("retry_before_provider_switch", {})
+    max_attempts = int(retry_cfg.get("max_attempts_per_provider", 2))
+
+    if not get_run_provider():
+        handle = get_llm_client(config_path=config_path)
+        set_run_provider(handle.provider)
+
+    resolution_order = config.get("resolution_order", ["gemini", "groq"])
+    providers = config.get("providers", {})
+    tried = _get_tried_providers()
+
+    while True:
+        current_provider = get_run_provider()
+        tried.add(current_provider)
+        handle = get_llm_client(force_provider=current_provider, config_path=config_path)
+
+        last_error = None
+        for attempt in range(1, max_attempts + 1):
+            start_time = time.time()
+            try:
+                result = await handle.ainvoke(prompt)
+                end_time = time.time()
+                _record_llm_call_metadata(current_provider, handle.model, prompt, result, start_time, end_time, run_id)
+                return result
+            except Exception as e:
+                last_error = e
+                await asyncio.sleep(0.05)
+
+        next_provider = None
+        for cand in resolution_order:
+            if cand not in tried and cand in providers:
+                cand_key = providers[cand].get("env_key")
+                if cand_key and os.environ.get(cand_key):
+                    next_provider = cand
+                    break
+
+        if next_provider:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            log_agent_action(
+                actor="llm_client",
+                action="provider_fallback",
+                tool="llm_provider",
+                decision="SWITCHED",
+                run_id=run_id,
+                details={
+                    "event": "provider_fallback",
+                    "from_provider": current_provider,
+                    "to_provider": next_provider,
+                    "reason": "retries_exhausted",
+                    "timestamp": now_iso,
+                },
+            )
+            set_run_provider(next_provider)
+        else:
+            raise RuntimeError(
+                f"All configured LLM providers exhausted retries ({', '.join(tried)}). "
                 f"Last error: {last_error}"
             )

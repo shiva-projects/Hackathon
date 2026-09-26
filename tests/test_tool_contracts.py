@@ -26,7 +26,7 @@ def test_compute_affordability_contract_success():
 
 def test_compute_affordability_contract_error_path():
     # Error path: zero income triggers ValueError
-    with pytest.raises(ValueError, match="greater than zero"):
+    with pytest.raises(ValueError, match="income_amount must be positive"):
         MCPClient.call_compute_affordability(
             income_amount=0.0,
             income_period="monthly",

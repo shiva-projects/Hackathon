@@ -1,9 +1,4 @@
-"""
-SQLite Checkpoint Configuration for LangGraph Tier 2 Session Memory.
-Per plan.md Section 14.4 & 4.3.
-Enables cross-turn state restoration and process-restart resume via session_id.
-"""
-
+import asyncio
 import sqlite3
 from pathlib import Path
 from typing import Dict, Any
@@ -12,12 +7,31 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 CHECKPOINT_DB_PATH = "data/checkpoints.sqlite"
 
 
-def get_checkpointer(db_path: str = CHECKPOINT_DB_PATH) -> SqliteSaver:
+class DualSqliteSaver(SqliteSaver):
+    """
+    Persistent SQLite Checkpointer supporting BOTH synchronous (.invoke)
+    and asynchronous (.ainvoke / .astream) LangGraph execution.
+    """
+
+    async def aget_tuple(self, config: Dict[str, Any]):
+        return await asyncio.to_thread(self.get_tuple, config)
+
+    async def aput(self, config: Dict[str, Any], checkpoint: Any, metadata: Any, new_versions: Any):
+        return await asyncio.to_thread(self.put, config, checkpoint, metadata, new_versions)
+
+    async def aput_writes(self, config: Dict[str, Any], writes: Any, task_id: str, task_path: str = ""):
+        return await asyncio.to_thread(self.put_writes, config, writes, task_id, task_path)
+
+    async def alist(self, config: Dict[str, Any], *, filter=None, before=None, limit=None):
+        return await asyncio.to_thread(lambda: list(self.list(config, filter=filter, before=before, limit=limit)))
+
+
+def get_checkpointer(db_path: str = CHECKPOINT_DB_PATH) -> DualSqliteSaver:
     """Creates or connects to persistent SQLite checkpointer."""
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), check_same_thread=False)
-    return SqliteSaver(conn)
+    return DualSqliteSaver(conn)
 
 
 def get_session_config(session_id: str, checkpoint_ns: str = "") -> Dict[str, Any]:

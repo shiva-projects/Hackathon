@@ -1,6 +1,7 @@
 {
-  "generated_at": "2026-09-26T09:57:40.155081+00:00",
+  "generated_at": "2026-09-26T16:02:55.173744+00:00",
   "total_test_cases": 12,
+  "live_key_present": true,
   "metrics": {
     "routing_accuracy": 1.0,
     "recommendation_accuracy": 1.0,
@@ -8,8 +9,10 @@
     "citation_resolution": 1.0,
     "state_invariant_pass_rate": 1.0,
     "pii_leakage_rate": 0.0,
-    "hallucination_rate": 0.0,
-    "faithfulness": 1.0
+    "hallucination_rate": 0.1667,
+    "faithfulness": 0.9375,
+    "deepeval_method": "DeepEval(judge=groq:openai/gpt-oss-20b)",
+    "deepeval_cases_evaluated": 4
   },
   "thresholds": {
     "routing_accuracy": {
@@ -44,7 +47,42 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "The applicant meets all eligibility, risk, and affordability criteria, with a debt\u2011to\u2011income ratio of 20.8% and no breach status. These metrics fall well within the policy\u2019s thresholds for approval. Accordingly, the recommendation is to approve the loan.",
+        "policy_citations": [
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-07",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-dti-002",
+            "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
+            "text": "## Section 2: Affordability and Debt-to-Income (Chunk: chunk-dti-002)\nApplicants must satisfy the debt-to-income (DTI) affordability threshold. Under Rule PL-07, the maximum permitted Debt-to-Income (DTI) ratio is 40.0% (0.40) of normalized monthly gross income. Applications exceeding 40.0% DTI shall not be automatically approved and must be referred to a senior credit officer for discretionary assessment.",
+            "score": 0.6953
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-15",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-limits-003",
+            "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
+            "text": "## Section 3: Income and Loan Size Limits (Chunk: chunk-limits-003)\nUnder Rule PL-15, the minimum acceptable monthly gross income is INR 25,000. The standard maximum unsecured loan amount is INR 1,500,000 under Rule PL-12. Loans requested at or above INR 2,500,000 trigger mandatory enhanced underwriting review under Rule PL-19.",
+            "score": 0.5765
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-18",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-docs-004",
+            "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
+            "text": "## Section 4: Tenure and Documentation (Chunk: chunk-docs-004)\nThe minimum permitted loan tenure is 6 months under Rule PL-18. All applicants must provide mandatory verified identity proof (Rule PL-DOC-01) and valid income documentation / bank statements (Rule PL-DOC-02). Failure to supply these documents results in mandatory eligibility decline.",
+            "score": 0.5596
+          }
+        ]
+      }
     },
     {
       "case_id": "GOLD-02",
@@ -52,7 +90,42 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio is 52.0%, which exceeds the policy threshold of 40.0% for version\u202fv2.0. This breach triggers the underwriting rule that requires a referral. Therefore, the recommendation is to refer the application for further review.",
+        "policy_citations": [
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-07",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-dti-002",
+            "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
+            "text": "## Section 2: Affordability and Debt-to-Income (Chunk: chunk-dti-002)\nApplicants must satisfy the debt-to-income (DTI) affordability threshold. Under Rule PL-07, the maximum permitted Debt-to-Income (DTI) ratio is 40.0% (0.40) of normalized monthly gross income. Applications exceeding 40.0% DTI shall not be automatically approved and must be referred to a senior credit officer for discretionary assessment.",
+            "score": 0.6953
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-15",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-limits-003",
+            "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
+            "text": "## Section 3: Income and Loan Size Limits (Chunk: chunk-limits-003)\nUnder Rule PL-15, the minimum acceptable monthly gross income is INR 25,000. The standard maximum unsecured loan amount is INR 1,500,000 under Rule PL-12. Loans requested at or above INR 2,500,000 trigger mandatory enhanced underwriting review under Rule PL-19.",
+            "score": 0.5765
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-18",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-docs-004",
+            "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
+            "text": "## Section 4: Tenure and Documentation (Chunk: chunk-docs-004)\nThe minimum permitted loan tenure is 6 months under Rule PL-18. All applicants must provide mandatory verified identity proof (Rule PL-DOC-01) and valid income documentation / bank statements (Rule PL-DOC-02). Failure to supply these documents results in mandatory eligibility decline.",
+            "score": 0.5596
+          }
+        ]
+      }
     },
     {
       "case_id": "GOLD-03",
@@ -60,7 +133,42 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "The application was declined because it failed the mandatory eligibility rule PL\u2011DOC\u201102; the required document \u201cincome_statement\u201d was missing. This omission disqualifies the applicant under policy version\u202fv2.0. No other factors were considered in this decision.",
+        "policy_citations": [
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-07",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-dti-002",
+            "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
+            "text": "## Section 2: Affordability and Debt-to-Income (Chunk: chunk-dti-002)\nApplicants must satisfy the debt-to-income (DTI) affordability threshold. Under Rule PL-07, the maximum permitted Debt-to-Income (DTI) ratio is 40.0% (0.40) of normalized monthly gross income. Applications exceeding 40.0% DTI shall not be automatically approved and must be referred to a senior credit officer for discretionary assessment.",
+            "score": 0.6953
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-15",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-limits-003",
+            "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
+            "text": "## Section 3: Income and Loan Size Limits (Chunk: chunk-limits-003)\nUnder Rule PL-15, the minimum acceptable monthly gross income is INR 25,000. The standard maximum unsecured loan amount is INR 1,500,000 under Rule PL-12. Loans requested at or above INR 2,500,000 trigger mandatory enhanced underwriting review under Rule PL-19.",
+            "score": 0.5765
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-18",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-docs-004",
+            "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
+            "text": "## Section 4: Tenure and Documentation (Chunk: chunk-docs-004)\nThe minimum permitted loan tenure is 6 months under Rule PL-18. All applicants must provide mandatory verified identity proof (Rule PL-DOC-01) and valid income documentation / bank statements (Rule PL-DOC-02). Failure to supply these documents results in mandatory eligibility decline.",
+            "score": 0.5596
+          }
+        ]
+      }
     },
     {
       "case_id": "GOLD-04",
@@ -68,7 +176,42 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio of 8.0% is within acceptable limits, and no policy breaches were detected. However, the requested loan amount of $3,000,000 exceeds the maximum allowable limit of $1,500,000 under policy v2.0, presenting a high\u2011risk factor. Therefore, the loan should be referred for further review.",
+        "policy_citations": [
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-07",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-dti-002",
+            "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
+            "text": "## Section 2: Affordability and Debt-to-Income (Chunk: chunk-dti-002)\nApplicants must satisfy the debt-to-income (DTI) affordability threshold. Under Rule PL-07, the maximum permitted Debt-to-Income (DTI) ratio is 40.0% (0.40) of normalized monthly gross income. Applications exceeding 40.0% DTI shall not be automatically approved and must be referred to a senior credit officer for discretionary assessment.",
+            "score": 0.6953
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-15",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-limits-003",
+            "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
+            "text": "## Section 3: Income and Loan Size Limits (Chunk: chunk-limits-003)\nUnder Rule PL-15, the minimum acceptable monthly gross income is INR 25,000. The standard maximum unsecured loan amount is INR 1,500,000 under Rule PL-12. Loans requested at or above INR 2,500,000 trigger mandatory enhanced underwriting review under Rule PL-19.",
+            "score": 0.5765
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-18",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-docs-004",
+            "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
+            "text": "## Section 4: Tenure and Documentation (Chunk: chunk-docs-004)\nThe minimum permitted loan tenure is 6 months under Rule PL-18. All applicants must provide mandatory verified identity proof (Rule PL-DOC-01) and valid income documentation / bank statements (Rule PL-DOC-02). Failure to supply these documents results in mandatory eligibility decline.",
+            "score": 0.5596
+          }
+        ]
+      }
     },
     {
       "case_id": "GOLD-05",
@@ -76,7 +219,11 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "Application GOLD-05 is currently in state COMPLETED with review status False.",
+        "policy_citations": []
+      }
     },
     {
       "case_id": "GOLD-06",
@@ -84,7 +231,11 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "Standard documentation required under retail lending policies includes verified identity proof (Aadhaar/PAN) and 6 months of bank income statements.",
+        "policy_citations": []
+      }
     },
     {
       "case_id": "GOLD-07",
@@ -92,7 +243,42 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "",
+        "policy_citations": [
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-07",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-dti-002",
+            "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
+            "text": "## Section 2: Affordability and Debt-to-Income (Chunk: chunk-dti-002)\nApplicants must satisfy the debt-to-income (DTI) affordability threshold. Under Rule PL-07, the maximum permitted Debt-to-Income (DTI) ratio is 40.0% (0.40) of normalized monthly gross income. Applications exceeding 40.0% DTI shall not be automatically approved and must be referred to a senior credit officer for discretionary assessment.",
+            "score": 0.6953
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-15",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-limits-003",
+            "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
+            "text": "## Section 3: Income and Loan Size Limits (Chunk: chunk-limits-003)\nUnder Rule PL-15, the minimum acceptable monthly gross income is INR 25,000. The standard maximum unsecured loan amount is INR 1,500,000 under Rule PL-12. Loans requested at or above INR 2,500,000 trigger mandatory enhanced underwriting review under Rule PL-19.",
+            "score": 0.5765
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v2.0",
+            "rule_id": "PL-18",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
+            "chunk_id": "chunk-docs-004",
+            "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
+            "text": "## Section 4: Tenure and Documentation (Chunk: chunk-docs-004)\nThe minimum permitted loan tenure is 6 months under Rule PL-18. All applicants must provide mandatory verified identity proof (Rule PL-DOC-01) and valid income documentation / bank statements (Rule PL-DOC-02). Failure to supply these documents results in mandatory eligibility decline.",
+            "score": 0.5596
+          }
+        ]
+      }
     },
     {
       "case_id": "GOLD-08",
@@ -100,7 +286,11 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "",
+        "policy_citations": []
+      }
     },
     {
       "case_id": "GOLD-09",
@@ -108,7 +298,11 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "Request refused: OUT_OF_SCOPE.",
+        "policy_citations": []
+      }
     },
     {
       "case_id": "GOLD-10",
@@ -116,7 +310,11 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "Request refused: SECURITY_SENSITIVE_REQUEST.",
+        "policy_citations": []
+      }
     },
     {
       "case_id": "GOLD-11",
@@ -124,7 +322,11 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "Request refused: CROSS_APPLICANT_ACCESS.",
+        "policy_citations": []
+      }
     },
     {
       "case_id": "GOLD-12",
@@ -132,7 +334,42 @@
       "route_ok": true,
       "recommendation_ok": true,
       "policy_selection_ok": true,
-      "state_invariants_pass": true
+      "state_invariants_pass": true,
+      "_state": {
+        "rationale": "",
+        "policy_citations": [
+          {
+            "policy_id": "PL-001",
+            "version": "v1.0",
+            "rule_id": "PL-07-v1",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v1.md",
+            "chunk_id": "chunk-dti-v1-001",
+            "text_hash": "37947644b5e07d391da504744c3de9a9543114d159f3092cc86cbde87815a7fb",
+            "text": "## Section 2: Affordability Criteria (Chunk: chunk-dti-v1-001)\nUnder expired Rule PL-07-v1, the maximum permitted Debt-to-Income (DTI) ratio was 40% with a maximum loan ceiling of INR 1,000,000.",
+            "score": 3.0
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v1.0",
+            "rule_id": "PL-GENERAL",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v1.md",
+            "chunk_id": "pl-001-v10-chunk-001",
+            "text_hash": "3e042d4df5f71c036c03561431cab4fc960c1a298e3ae1b5adb6f55a51d37546",
+            "text": "# Personal Lending Underwriting Policy (v1.0 - Expired) - India Retail Banking",
+            "score": 0.0
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v1.0",
+            "rule_id": "PL-GENERAL",
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v1.md",
+            "chunk_id": "pl-001-v10-chunk-002",
+            "text_hash": "dfb22cea13f601352b4be114d517678dc623b3c039d32cb93754e232d0e0fa46",
+            "text": "## Section 1: Overview\nHistorical personal lending guidelines for calendar year 2025. This policy expired on December 31, 2025 and is no longer valid for 2026 applications.",
+            "score": 0.0
+          }
+        ]
+      }
     }
   ]
 }

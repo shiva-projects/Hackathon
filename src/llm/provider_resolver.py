@@ -8,7 +8,13 @@ Does NOT make any network or LLM calls.
 import os
 import json
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional, List
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 
 def load_model_config(path: str = "config/model_config.json") -> Dict[str, Any]:
@@ -28,23 +34,80 @@ def load_model_config(path: str = "config/model_config.json") -> Dict[str, Any]:
         return json.load(f)
 
 
-def resolve_provider(config: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+def validate_provider_environment(
+    config: Optional[Dict[str, Any]] = None,
+    config_path: str = "config/model_config.json",
+) -> Dict[str, Any]:
     """
-    Walk config['resolution_order'] in order; return the first provider whose
-    env_key is set in the environment. Raises if none are set — this must never
-    silently continue with no model, per Rule 10 of the developer contract.
+    Canonical, unified provider and key validation function.
+    Per v8 specification: single source of truth across run_eval.py,
+    verify_acceptance_criteria.py, decision_agent.py, and app.py.
     """
-    resolution_order = config.get("resolution_order", [])
+    if config is None:
+        try:
+            config = load_model_config(config_path)
+        except Exception as exc:
+            return {
+                "has_live_key": False,
+                "active_provider": None,
+                "provider_config": None,
+                "available_providers": [],
+                "reason": f"Config load failure: {exc}",
+            }
+
+    resolution_order = config.get("resolution_order", ["gemini", "groq"])
     providers = config.get("providers", {})
+    available = []
+    dummy_values = {"", "your_gemini_api_key_here", "your_groq_api_key_here", "placeholder"}
 
     for name in resolution_order:
-        provider = providers.get(name)
-        if not provider:
-            continue
-        env_key = provider.get("env_key")
-        val = os.environ.get(env_key) if env_key else None
-        if val and str(val).strip():
-            return name, provider
+        p_cfg = providers.get(name)
+        env_key = p_cfg.get("env_key")
+        val = (os.environ.get(env_key) or "").strip()
+        if val:
+            val_lower = val.lower()
+            is_dummy = (
+                val_lower in dummy_values
+                or val_lower.startswith("your_")
+                or "placeholder" in val_lower
+            )
+            if not is_dummy:
+                available.append(name)
 
-    tried = ", ".join(providers[n]["env_key"] for n in resolution_order if n in providers)
-    raise RuntimeError(f"No configured LLM provider has a live API key. Tried: {tried}")
+    if available:
+        active = available[0]
+        return {
+            "has_live_key": True,
+            "active_provider": active,
+            "provider_config": providers[active],
+            "available_providers": available,
+            "reason": f"Resolved {active} using {providers[active].get('env_key')}",
+        }
+    else:
+        tried = ", ".join(providers[n].get("env_key", n) for n in resolution_order if n in providers)
+        return {
+            "has_live_key": False,
+            "active_provider": None,
+            "provider_config": None,
+            "available_providers": [],
+            "reason": f"No configured LLM provider has a live API key. Tried: {tried}",
+        }
+
+
+def has_live_provider_key(
+    config: Optional[Dict[str, Any]] = None,
+    config_path: str = "config/model_config.json",
+) -> bool:
+    """Returns True if at least one LLM provider has a live, non-placeholder API key."""
+    return validate_provider_environment(config=config, config_path=config_path)["has_live_key"]
+
+
+def resolve_provider(config: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict[str, Any]]:
+    """
+    Walk config['resolution_order'] in order; return the first provider whose
+    env_key is set in the environment. Raises RuntimeError if none are set.
+    """
+    validation = validate_provider_environment(config=config)
+    if validation["has_live_key"]:
+        return validation["active_provider"], validation["provider_config"]
+    raise RuntimeError(validation["reason"])

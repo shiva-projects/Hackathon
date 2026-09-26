@@ -23,6 +23,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from src.state import create_initial_state, assert_state_invariants
 from src.ingestion.application_loader import load_application_from_file
 from src.graph import build_loan_copilot_graph
@@ -66,7 +72,8 @@ def run_single_application(
     else:
         initial_state = create_initial_state(app_id, applicant_raw_text=raw_text, applicant_facts=facts, session_id=session_id)
 
-    final_state = graph.invoke(initial_state, config=cfg)
+    import asyncio
+    final_state = asyncio.run(graph.ainvoke(initial_state, config=cfg))
 
     # Validate state invariants
     assert_state_invariants(final_state)

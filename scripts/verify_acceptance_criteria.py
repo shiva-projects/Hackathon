@@ -10,7 +10,15 @@ import json
 import re
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -193,7 +201,7 @@ def verify_ac_11():
 
 
 def verify_ac_12():
-    # AC-12: eval report + all 3 agent tests pass
+    # AC-12: eval report + all 3 agent tests pass + non-null DeepEval metrics
     eval_file = REPO_ROOT / "reports" / "eval_report.json"
     if not eval_file.exists():
         return False, "reports/eval_report.json missing"
@@ -201,7 +209,11 @@ def verify_ac_12():
     metrics = data.get("metrics", {})
     if metrics.get("routing_accuracy", 0) < 0.90:
         return False, f"routing_accuracy below threshold: {metrics.get('routing_accuracy')}"
-    return True, "eval report + all 3 agent tests pass"
+    if metrics.get("hallucination_rate") is None or metrics.get("faithfulness") is None:
+        return False, "DeepEval metrics (hallucination_rate, faithfulness) are null"
+    if metrics.get("deepeval_cases_evaluated", 0) <= 0:
+        return False, "deepeval_cases_evaluated must be > 0"
+    return True, "eval report + DeepEval metrics + all 3 agent tests pass"
 
 
 def verify_nfr_01():
@@ -258,10 +270,30 @@ def verify_nfr_06():
 
 
 def main():
+    import os
     print("=" * 30)
     print("CAPSTONE ACCEPTANCE VERIFICATION")
     print("=" * 30)
-    
+
+    # Preflight: warn if no live LLM provider key is set.
+    # Evidence generated without a live key contains template rationale strings,
+    # estimated token counts, and no real LLM spans — which will cost marks.
+    from src.llm.provider_resolver import validate_provider_environment
+    env_validation = validate_provider_environment()
+    has_live_key = env_validation["has_live_key"]
+    active_provider = env_validation.get("active_provider")
+
+    if not has_live_key:
+        print()
+        print("WARNING: No live LLM provider key detected (GEMINI_API_KEY / GROQ_API_KEY).")
+        print("         Evidence in this run was generated WITHOUT a live model call.")
+        print(f"         Reason: {env_validation.get('reason')}")
+        print("         Set GEMINI_API_KEY or GROQ_API_KEY in .env before submitting.")
+        print()
+    else:
+        print(f"Environment Check: Active provider resolved as '{active_provider}' ({env_validation.get('reason')})")
+        print()
+
     criteria = [
         ("AC-01", verify_ac_01),
         ("AC-02", verify_ac_02),
@@ -282,7 +314,7 @@ def main():
         ("NFR-05", verify_nfr_05),
         ("NFR-06", verify_nfr_06),
     ]
-    
+
     all_passed = True
     for code, fn in criteria:
         passed, msg = fn()
@@ -290,10 +322,13 @@ def main():
         print(f"{code:<7} {status:<6} {msg}")
         if not passed:
             all_passed = False
-            
-    if all_passed:
+
+    if all_passed and has_live_key:
         print("RESULT: READY FOR SUBMISSION")
         sys.exit(0)
+    elif all_passed and not has_live_key:
+        print("RESULT: AC/NFR checks pass but WARNING: no live key — re-run with GEMINI_API_KEY set before submitting")
+        sys.exit(1)
     else:
         print("RESULT: NOT READY FOR SUBMISSION")
         sys.exit(1)

@@ -1,5 +1,5 @@
 {
-  "run_id": "RUN-20260926152700",
+  "run_id": "RUN-20260926212912",
   "application_ids": [
     "APP-AMB-01",
     "APP-001",
@@ -13,7 +13,7 @@
     "APP-OUT-01"
   ],
   "git_commit": "committed",
-  "generated_at": "2026-09-26T09:57:01.079818+00:00",
-  "provider": "gemini",
-  "model": "gemini-2.0-flash"
+  "generated_at": "2026-09-26T15:59:47.449754+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-20b"
 }

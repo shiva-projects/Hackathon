@@ -4,15 +4,17 @@ Generates concrete follow-up questions without invoking underwriting or deciding
 Per plan.md Section 4.3.
 """
 
+import time
 from src.state import LoanState
 from src.observability.unified_logger import log_agent_action
 
 
-def clarification_node(state: LoanState) -> LoanState:
+async def clarification_node(state: LoanState) -> LoanState:
     """
-    LangGraph node: Asks applicant for clarification when intent is ambiguous.
+    Async LangGraph node: Asks applicant for clarification when intent is ambiguous.
     Sets clarification_needed=True and pauses underwriting with request_status=IN_PROGRESS.
     """
+    start_t = time.time()
     question = (
         "I can assess loan eligibility, compute affordability (DTI), and screen credit risk. "
         "Please share your loan application details or provide an application ID to proceed."
@@ -26,12 +28,21 @@ def clarification_node(state: LoanState) -> LoanState:
     state["routing_history"].append("clarification_node")
     state["step_count"] += 1
 
+    latency_ms = round((time.time() - start_t) * 1000.0, 2)
+
     log_agent_action(
         actor="clarification_node",
         action="request_clarification",
         tool=None,
         decision="AWAITING_CLARIFICATION",
         application_id=state.get("application_id"),
+        latency_ms=latency_ms,
         details={"question": question},
     )
     return state
+
+
+def clarification_node_sync(state: LoanState) -> LoanState:
+    """Synchronous entry point for tests/legacy callers."""
+    import asyncio
+    return asyncio.run(clarification_node(state))

@@ -4,12 +4,22 @@
 
 ---
 
+## 📢 Provider Exception (Documented Deviation from qn.txt §3.4)
+
+> **Faculty/Instructor Authorization**: Per direct instructor guidance (September 2026), this submission uses **Groq** (`openai/gpt-oss-20b`, fallback `qwen/qwen3-32b`) as the primary LLM provider in place of Google Gemini.
+> 
+> **Rationale**: Google Gemini's public free-tier imposes severe rate constraints (20 requests/minute tier cap), causing spurious `429 Quota Exceeded` errors during full evidence regeneration and automated evaluation suites (12 benchmark test cases + DeepEval metrics). The faculty exception explicitly approves Groq for both the multi-agent runtime pipeline and the **DeepEval LLM-as-judge evaluation** (`groq:openai/gpt-oss-20b`), ensuring unthrottled, genuine evaluation.
+> 
+> **Dual-Provider Architecture**: The system retains dual-provider resolution: if `GEMINI_API_KEY` is present, it uses Gemini; otherwise, it resolves seamlessly to Groq. Detailed authorization: [`docs/instructor-provider-exception.md`](docs/instructor-provider-exception.md).
+
+---
+
 ## 1. System Overview
-The **Loan Origination & Underwriting Copilot** is a production-grade, observable, and governed multi-agent system built on **LangGraph**, **Model Context Protocol (MCP)**, **Google Gemini**, and **Arize Phoenix**.
+The **Loan Origination & Underwriting Copilot** is a production-grade, observable, and governed multi-agent system built on **LangGraph**, **Model Context Protocol (MCP)**, **Groq / Google Gemini**, and **Arize Phoenix**.
 
 ### The Core Invariant
 > **Code decides, LLM explains.**  
-> Large Language Models hallucinate numbers and cannot guarantee regulatory compliance under adversarial pressure. In this system, all debt-to-income (DTI) calculations and affordability numbers are computed in **pure Python `Decimal` arithmetic** ([`src/domain/calculations.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/domain/calculations.py)). Thresholds are strictly evaluated against structured policy metadata ([`src/domain/rules.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/domain/rules.py)). Decisions are assigned solely by deterministic code ([`src/domain/decisions.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/domain/decisions.py)). Gemini is invoked exclusively to draft human-readable explanatory rationales citing verified policy clauses.
+> Large Language Models hallucinate numbers and cannot guarantee regulatory compliance under adversarial pressure. In this system, all debt-to-income (DTI) calculations and affordability numbers are computed in **pure Python `Decimal` arithmetic** ([`src/domain/calculations.py`](src\domain\calculations.py)). Thresholds are strictly evaluated against structured policy metadata ([`src/domain/rules.py`](src\domain\rules.py)). Decisions are assigned solely by deterministic code ([`src/domain/decisions.py`](src\domain\decisions.py)). The LLM is invoked exclusively to draft human-readable explanatory rationales citing verified policy clauses.
 
 ---
 
@@ -48,7 +58,40 @@ Set `GEMINI_API_KEY` (preferred) or `GROQ_API_KEY` (fallback) in `.env`. The pip
 
 ---
 
-## 3. The 3 Locked Commands (Execution & Verification)
+## 3. Interactive Web Dashboard (Optional UI Layer)
+
+> **Scope Note**: The primary required evaluation and pipeline execution interfaces are the **CLI runner (`scripts/run_pipeline.py`)** and the **FastAPI REST API (`src/api/server.py`)** conforming to the technical specification. The Streamlit web interface (`app.py`) is provided strictly as an **optional interactive demonstration and inspection layer** for human-in-the-loop review, visual state inspection, and live testing; it has no side effects on the core headless pipeline.
+
+```bash
+streamlit run app.py
+```
+
+### What You Can Do in the UI:
+1. **Choose from Preset Test Applications**:
+   - `APP-001`: Standard Clean Approval (healthy 18.2% DTI)
+   - `APP-002`: Affordability DTI Breach (53.3% DTI > 40% policy threshold → `DECLINE`)
+   - `APP-003`: Missing Mandatory Documentation (missing income proof → `REFER`)
+   - `APP-004`: High-Value Loan (> £25,000 threshold → `REFER` to human underwriter)
+   - `APP-011`: UK Jurisdiction Lending Policy v2.0
+   - `injection_case`: Adversarial Prompt Injection Defense
+   - `ambiguous_case`: Clarification Routing Loop
+2. **Or Submit a Custom Application**:
+   - Input custom applicant name, product, jurisdiction, monthly income, requested amount, tenure, existing obligations, and documents.
+3. **Execute the Multi-Agent Underwriting Graph with Live Step-by-Step Visualization**:
+   - Watch the interactive **Graphviz visual workflow diagram** animate in real-time, showing exactly which step is executing now (`⏳ EXECUTING NOW`), which stages are completed (`✅ DONE`), or if security refused (`🚫 REFUSED`).
+   - Track live stage descriptions: `input_guard` (PII/Injection Screen) → `authorization_node` (Access Boundary) → `intent_classifier` → `supervisor` → `policy_agent` (RAG) → `eligibility_agent` (FastMCP & DTI) → `risk_agent` → `decision_node` (AI Rationale).
+   - Inspect the **Recommendation Badge** (`APPROVE`, `REFER`, `DECLINE`, `REFUSED`).
+   - View the **Pure Python Decimal Arithmetic** calculations (Net Disposable Income, EMI, DTI Ratio vs Threshold).
+   - Inspect **Verifiable Policy Citations** (Clause ID, Source File, and SHA-256 cryptographic text hashes).
+   - Read the **AI Explanatory Rationale** drafted by LLM citing policy clauses.
+4. **Interactive Human-in-the-Loop (HITL) Review**:
+   - For applications marked `REFER`, review the case, enter an underwriter override (`APPROVE` or `DECLINE`) with notes, and commit the decision directly to `logs/human_reviews.jsonl`.
+5. **Inspect Live Observability**:
+   - Expand the **Golden Signals & OpenTelemetry** drawer to view thinking/acting latencies, span counts, and cost metrics.
+
+---
+
+## 4. The 3 Locked Commands (Execution & Verification)
 
 Per hackathon NFR-02 and evaluation instructions, the entire system is operated and verified through three deterministic commands:
 
@@ -101,7 +144,7 @@ RESULT: READY FOR SUBMISSION
 
 ---
 
-## 4. Human-in-the-Loop CLI Review Flow
+## 5. Human-in-the-Loop CLI Review Flow
 
 High-value loan applications (> £25,000 / ₹2,500,000) or policy breaches automatically require human underwriter sign-off (`human_review_required = True`). A loan officer can review and issue a binding decision:
 ```bash
@@ -111,9 +154,9 @@ The decision is appended to `logs/human_reviews.jsonl` and recorded in `outputs/
 
 ---
 
-## 5. Dual-Write Unified Logging Architecture
+## 6. Dual-Write Unified Logging Architecture
 
-Every system event is written through [`src/observability/unified_logger.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/observability/unified_logger.py) in a dual-write pattern:
+Every system event is written through [`src/observability/unified_logger.py`](src/observability/unified_logger.py) in a dual-write pattern:
 1. **Per-Concern Logs**: Scoped to specific analytical schemas:
    - `logs/tool_calls.jsonl`: Machine-generated tool call latency, args, and results.
    - `logs/agent_actions.jsonl`: Consequential agent decisions and state changes.
@@ -125,10 +168,11 @@ Every system event is written through [`src/observability/unified_logger.py`](fi
 
 ---
 
-## 6. Directory Structure & Key Artifacts
+## 7. Directory Structure & Key Artifacts
 
 ```
 .
+├── app.py                       # Interactive Streamlit dashboard
 ├── src/                         # Multi-agent LangGraph core
 │   ├── graph.py                 # Supervisor routing & state graph assembly
 │   ├── state.py                 # Typed state contract & invariant assertions
@@ -151,7 +195,7 @@ Every system event is written through [`src/observability/unified_logger.py`](fi
 
 ---
 
-## 7. Running Tests
+## 8. Running Tests
 To run the full suite of unit, integration, and security tests:
 ```bash
 pytest -v
@@ -160,9 +204,9 @@ All tests run locally using synthetic fixtures without requiring external databa
 
 ---
 
-## 8. Extra Credit: FastAPI Streaming API & Demonstration
+## 9. Extra Credit: FastAPI Streaming API & Demonstration
 
-The copilot includes an optional asynchronous **FastAPI HTTP & Server-Sent Events (SSE) Streaming API** ([`src/api/server.py`](file:///c:/Users/ashiv/OneDrive/Desktop/hackathon/src/api/server.py)) per Section 7.7 & 8.1 of the specification.
+The copilot includes an optional asynchronous **FastAPI HTTP & Server-Sent Events (SSE) Streaming API** ([`src/api/server.py`](src/api/server.py)) per Section 7.7 & 8.1 of the specification.
 
 ### Endpoints
 - `GET /health` — Service health and timestamp status

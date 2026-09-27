@@ -14,6 +14,7 @@ from src.domain.models import AffordabilityResult, RuleEvaluationResult
 from src.domain.decisions import evaluate_underwriting_decision
 from src.guardrails.output_guard import screen_output
 from src.observability.unified_logger import log_agent_action, log_tool_call
+from src.prompts import build_rationale_prompt
 
 from src.llm.client import get_llm_client, invoke_with_resilience, ainvoke_with_resilience
 from src.llm.provider_resolver import has_live_provider_key
@@ -69,15 +70,12 @@ async def agenerate_llm_rationale(
         )
 
     try:
-        prompt = (
-            f"You are a loan underwriting assistant. Explain the following deterministic underwriting result:\n"
-            f"Recommendation: {recommendation}\n"
-            f"Policy Version: {policy_version}\n"
-            f"DTI: {float(affordability.dti):.1%}\n"
-            f"Breach Status: {affordability.breach}\n"
-            f"Reasons: {'; '.join(reasons)}\n"
-            f"Instructions: Write a clear 2-3 sentence explanation for the credit officer. "
-            f"Do not alter the recommendation. Do not invent new figures."
+        prompt = build_rationale_prompt(
+            recommendation=recommendation,
+            policy_version=policy_version,
+            dti=affordability.dti,
+            breach=affordability.breach,
+            reasons=reasons,
         )
         return await ainvoke_with_resilience(prompt, run_id=run_id)
     except Exception as e:
@@ -133,10 +131,11 @@ async def adecision_agent_node(state: LoanState) -> LoanState:
         run_id=state.get("session_id", "default_run"),
     )
 
-    # 3. Output Guardrail (PII scrub + recommendation language enforcement)
+    # 3. Output Guardrail (PII scrub + recommendation language + numeric consistency enforcement)
     clean_rationale = screen_output(
         rationale=raw_rationale,
         ai_recommendation=decision.ai_recommendation,
+        dti=affordability.dti,
     )
     state["rationale"] = clean_rationale
     state["routing_history"].append("decision_node")

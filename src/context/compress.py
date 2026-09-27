@@ -1,7 +1,9 @@
 """
-Context Compression and Summarization module.
-Reduces token volume on long context histories by >= 50% using semantic extraction
+Context Compression and Syntactic Compaction module.
+Reduces token volume on long context histories by >= 50% using rule-based syntactic compaction
+(conversational pleasantry pruning, structured proposition grouping, and dialogue turn deduplication)
 while preserving factual coherence and integrity (no mid-sentence truncation).
+Designed for deterministic, zero-latency prompt compression without introducing secondary LLM hallucinations.
 Per plan.md Section 13.10 & 14.21.
 """
 

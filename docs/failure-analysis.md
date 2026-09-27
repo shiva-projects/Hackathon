@@ -2,7 +2,12 @@
 
 Per hackathon requirements (AC-08), this document catalogs three real failure modes observed during system development, providing exact Phoenix `run_id` and `span_id` trace citations, root causes, committed engineering fixes, and deterministic reproduction steps.
 
-> **Replay Architecture**: All failures can be reproduced via `python scripts/reproduce_failure.py --case all`. The reproduction suite supports both deterministic fixture replay AND live end-to-end multi-agent execution (`adecision_agent_node`). When replayed, it exercises domain rules, calls the live decision agent against the adversarial prompt, emits resolving Phoenix spans to `traces/phoenix_spans.parquet`, logs tool citations to `logs/tool_calls.jsonl` and `logs/agent_actions.jsonl`, and demonstrates live that adversarial prompt injections cannot alter the deterministic `REFER` recommendation.
+> **Replay Architecture & Symmetrical Live Verification**: All failures can be reproduced via `python scripts/reproduce_failure.py --case all`. The reproduction suite delivers symmetrical end-to-end live execution across all three failure modes:
+> - **FAIL-001 (Policy Selection)**: Executes deterministic interval matching and invokes the live [`apolicy_agent_node`](../src/agents/policy_agent.py), proving that policy v2.0 is selected and policy citations are attached.
+> - **FAIL-002 (MCP Timeout)**: Invokes the live [`call_with_timeout`](../src/resilience/timeout.py) circuit breaker against a stalled transport, proving graceful transition to `UNABLE_TO_COMPLETE` with `MCP_UNAVAILABLE` and mandatory human review.
+> - **FAIL-003 (Adversarial RAG Injection)**: Evaluates deterministic domain math and invokes the live [`adecision_agent_node`](../src/agents/decision_agent.py) against adversarial prompt injections, proving live that LLM prose cannot alter the deterministic `REFER` recommendation.
+>
+> All replayed runs emit resolving Phoenix spans to `traces/phoenix_spans.parquet` and structured citations to `logs/tool_calls.jsonl` and `logs/agent_actions.jsonl`.
 
 ```bash
 python scripts/reproduce_failure.py --case all

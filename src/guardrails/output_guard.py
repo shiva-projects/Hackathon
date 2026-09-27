@@ -4,7 +4,7 @@ Per plan.md Section 6.1 & 13.12.
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from src.observability.span_sanitizer import sanitize_data, sanitize_text
 
 # Regex patterns detecting claims of a "final decision" by the AI
@@ -48,15 +48,56 @@ def enforce_recommendation_language(prose: str, ai_recommendation: Optional[str]
     return cleaned
 
 
+from decimal import Decimal
+
+
+def validate_rationale_numeric_consistency(
+    prose: str,
+    ai_recommendation: Optional[str],
+    dti: Optional[Decimal] = None,
+) -> Tuple[bool, str]:
+    """
+    Validates that the LLM rationale does not hallucinate numbers or claims that contradict
+    the deterministic calculations (Code decides, LLM explains invariant).
+    Returns (is_consistent, message).
+    """
+    if not prose:
+        return True, "Empty prose"
+
+    # 1. Recommendation agreement check
+    if ai_recommendation:
+        rec_upper = ai_recommendation.upper()
+        # If deterministic recommendation is REFER or DECLINE, ensure prose doesn't assert approval
+        if rec_upper in {"REFER", "DECLINE"}:
+            if re.search(r"\b(?:approve|approved)\b", prose, re.IGNORECASE) and not re.search(r"\b(?:not approve|cannot approve|refuse to approve)\b", prose, re.IGNORECASE):
+                # Flag contradiction
+                return False, f"Prose contains approval terminology contradicting deterministic recommendation {rec_upper}"
+
+    # 2. DTI numeric consistency check
+    if dti is not None:
+        expected_dti_pct = float(dti) * 100.0
+        # Search for any explicitly stated DTI percentage like 'DTI of 25%' or 'DTI is 55%'
+        dti_matches = re.findall(r"(?:dti|debt-to-income)[^\d]{1,15}(\d+(?:\.\d+)?)\s*%", prose, re.IGNORECASE)
+        for val_str in dti_matches:
+            stated_pct = float(val_str)
+            # If stated DTI deviates by more than 2.0% from computed DTI, it is a numeric hallucination
+            if abs(stated_pct - expected_dti_pct) > 2.0:
+                return False, f"Hallucinated DTI {stated_pct:.1f}% contradicts deterministic DTI {expected_dti_pct:.1f}%"
+
+    return True, "Consistent with deterministic findings"
+
+
 def screen_output(
     rationale: str,
     ai_recommendation: Optional[str],
     seeded_pii_literals: Optional[List[str]] = None,
+    dti: Optional[Decimal] = None,
 ) -> str:
     """
     Full output guardrail pipeline:
     1. Redacts PII and sensitive numeric representations.
     2. Rewrites any authoritative 'final decision' wording into advisory recommendation language.
+    3. Enforces numeric and recommendation consistency against deterministic outputs.
     """
     # Step 1: PII Scrubbing
     sanitized = sanitize_text(rationale)
@@ -66,9 +107,18 @@ def screen_output(
     # Step 2: Language Enforcement
     sanitized = enforce_recommendation_language(sanitized, ai_recommendation)
 
+    # Step 3: Numeric & Recommendation Consistency Validation
+    is_valid, reason = validate_rationale_numeric_consistency(sanitized, ai_recommendation, dti)
+    if not is_valid:
+        # Append advisory correction note ensuring applicant-facing prose never misinforms
+        rec_str = ai_recommendation or "REFER"
+        dti_str = f"{float(dti):.1%}" if dti is not None else "evaluated"
+        sanitized = f"{sanitized}\n[Correction: Official deterministic assessment is {rec_str} based on calculated DTI of {dti_str}]."
+
     return sanitized
 
 
 def sanitize_review_reason(reason: str) -> str:
     """Sanitizes human reviewer notes before saving to logs/human_reviews.jsonl."""
     return sanitize_text(reason)
+

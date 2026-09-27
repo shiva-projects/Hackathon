@@ -48,6 +48,37 @@ class InputGuardResult(BaseModel):
     target_applicant: Optional[str] = None
 
 
+STRUCTURAL_INJECTION_DELIMITERS = [
+    re.compile(r"<\s*/?\s*(?:quarantined_data|system|context|instruction|rules)\s*>", re.IGNORECASE),
+    re.compile(r"(?:---|===|###)\s*(?:begin|start|override|end)\s*(?:system|instruction|rules|prompt)", re.IGNORECASE),
+    re.compile(r"```\s*(?:system|admin|eval|exec)", re.IGNORECASE),
+    re.compile(r"\b(?:eval|exec|os\.system|__import__)\s*\(", re.IGNORECASE),
+    re.compile(r"(?:base64|b64)\s*:\s*[A-Za-z0-9+/=]{20,}", re.IGNORECASE),
+]
+
+
+def classify_structural_and_semantic_injection(text: str) -> tuple[bool, Optional[str]]:
+    """
+    Defense-in-depth: Evaluates structural, delimiter-escaping, and semantic instruction overrides
+    beyond pure lexical blocklists (AC-06).
+    """
+    if not text:
+        return False, None
+
+    for pat in STRUCTURAL_INJECTION_DELIMITERS:
+        if pat.search(text):
+            return True, "STRUCTURAL_DELIMITER_ESCAPE_ATTEMPT"
+
+    # Semantic instruction boundary check
+    lower_text = text.lower()
+    if ("policy" in lower_text or "rule" in lower_text or "instruction" in lower_text) and (
+        "do not follow" in lower_text or "discard" in lower_text or "disregard" in lower_text or "replace with" in lower_text
+    ):
+        return True, "SEMANTIC_INSTRUCTION_OVERRIDE"
+
+    return False, None
+
+
 def screen_input(
     raw_text: str,
     current_application_id: str,
@@ -56,7 +87,7 @@ def screen_input(
     """
     Evaluates applicant-supplied text before graph processing:
     1. Quarantines raw text so it is labeled QUARANTINED_DATA.
-    2. Flags prompt injection attempts.
+    2. Flags prompt injection attempts via Guardrails-AI validator, regex, and semantic structural checks.
     3. Refuses cross-applicant data queries.
     Logs consequential refusals to logs/agent_actions.jsonl.
     """
@@ -144,10 +175,18 @@ def screen_input(
                 )
 
     injection_found = False
+    rejection_reason = "SECURITY_SENSITIVE_REQUEST"
     for pattern in INJECTION_PATTERNS:
         if pattern.search(raw_text):
             injection_found = True
             break
+
+    # 3. Tertiary defense-in-depth: Structural delimiter escaping and semantic instruction checks
+    if not injection_found:
+        semantic_detected, semantic_reason = classify_structural_and_semantic_injection(raw_text)
+        if semantic_detected:
+            injection_found = True
+            rejection_reason = semantic_reason or "SEMANTIC_INJECTION_DETECTED"
 
     from src.context.quarantine import quarantine_untrusted_text
     quarantined = quarantine_untrusted_text(raw_text)
@@ -160,12 +199,12 @@ def screen_input(
             decision="QUARANTINED",
             run_id=run_id,
             application_id=current_application_id,
-            details={"refusal_reason": "SECURITY_SENSITIVE_REQUEST"},
+            details={"refusal_reason": rejection_reason},
         )
         return InputGuardResult(
             is_safe=False,
             quarantined_text=quarantined,
-            rejection_reason="SECURITY_SENSITIVE_REQUEST",
+            rejection_reason=rejection_reason,
             injection_detected=True,
         )
 

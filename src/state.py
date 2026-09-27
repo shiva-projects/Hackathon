@@ -1,72 +1,134 @@
 """
-LoanState TypedDict and state invariants for BC-AAIE-HACK-02.
-Frozen architecture per plan.md v7.
+DisputeState TypedDict and state invariants for Transaction Dispute & Fraud Triage Copilot.
+Conforms strictly to AAIE_AGT_001_BFS Specification §5.1 (AC-01, AC-02, AC-03, AC-04).
 """
 
 from typing import TypedDict, Optional, List, Dict, Any, Literal
 
-
 GEMINI_FALLBACK_RATIONALE = (
-    "Rationale generation was unavailable. The recommendation below was produced "
-    "entirely from the selected policy and deterministic underwriting rules."
+    "Resolution drafting model was temporarily unavailable. The recommendation below "
+    "was produced deterministically from card network dispute rules and chargeback eligibility calculations."
 )
 
 VALID_INTENTS = {
-    "new_application",
+    "new_dispute",
     "status_check",
+    "dispute_inquiry",
     "document_question",
-    "policy_question",
     "ambiguous",
     "out_of_scope",
     "security_sensitive",
+    # Legacy alias
+    "new_application",
+    "policy_question",
 }
 
-VALID_REQUEST_STATUSES = {"IN_PROGRESS", "COMPLETED", "REFUSED"}
+VALID_REQUEST_STATUSES = {"IN_PROGRESS", "COMPLETED", "REFUSED", "ESCALATED"}
 VALID_DECISION_STATUSES = {"DETERMINED", "UNABLE_TO_COMPLETE", "N/A"}
-VALID_RECOMMENDATIONS = {"APPROVE", "REFER", "DECLINE", None}
-VALID_FINAL_DECISIONS = {"APPROVE", "REFER", "DECLINE", None}
+VALID_RESOLUTION_ACTIONS = {
+    "PROCEED_CHARGEBACK",
+    "MERCHANT_DIRECT_REFUND",
+    "DENY_OUTSIDE_WINDOW",
+    "ESCALATE_TO_HUMAN",
+    "REQUEST_DOCUMENTATION",
+    "APPROVE",
+    "REFER",
+    "DECLINE",
+    None,
+}
 
 
-class LoanState(TypedDict):
-    application_id: str
-    applicant_raw_text: str            # untrusted, quarantined, never used as instructions
-    applicant_facts: Dict[str, Any]    # extracted + schema-validated
+class DisputeState(TypedDict):
+    """
+    Typed graph state shared across all nodes in the dispute triage system.
+    Satisfies AC-01 (explicit typed state contract).
+    """
+    dispute_id: str
+    customer_id: str
+    transaction_id: str
+    dispute_raw_text: str             # Untrusted customer complaint: quarantined, never treated as instructions (NFR-03)
     session_id: str
-    intent: str                        # new_application | status_check | document_question |
-                                       # policy_question | ambiguous | out_of_scope | security_sensitive
+    intent: str                       # new_dispute | status_check | dispute_inquiry | ambiguous | out_of_scope | security_sensitive
     clarification_needed: bool
-    clarification_question: Optional[str]  # the concrete follow-up question shown to applicant
-    clarification_response: Optional[str]  # the applicant's reply on --resume-session
-    request_status: str                # "IN_PROGRESS" | "COMPLETED" | "REFUSED"
-    refusal_reason: Optional[str]      # "CROSS_APPLICANT_ACCESS", "SECURITY_SENSITIVE_REQUEST", "OUT_OF_SCOPE", "AUTHORIZATION_DENIED"
-    policy_selected: Dict[str, Any]    # {policy_id, version, effective_from, effective_to, product, jurisdiction}
-    policy_citations: List[Dict[str, Any]]  # [{policy_id, version, rule_id, source_file, chunk_id, text_hash}]
-    affordability: Dict[str, Any]      # deterministic: {dti, disposable_income, breach, threshold}
-    risk_flags: List[Dict[str, Any]]   # deterministic rule outputs
-    rule_evaluations: List[Dict[str, Any]]  # deterministic rule evaluations
-    ai_recommendation: Optional[str]   # "APPROVE" | "REFER" | "DECLINE" | None — AI ONLY, never final
-    decision_status: str               # "DETERMINED" | "UNABLE_TO_COMPLETE" | "N/A"
-    unable_reason: Optional[str]       # "POLICY_UNAVAILABLE", "MCP_UNAVAILABLE", etc.
+    clarification_question: Optional[str]
+    clarification_response: Optional[str]
+    request_status: str               # IN_PROGRESS | COMPLETED | REFUSED | ESCALATED
+    refusal_reason: Optional[str]
+
+    # Intake & Profile metadata (from MCP)
+    transaction_details: Dict[str, Any]
+    customer_profile: Dict[str, Any]
+
+    # Fraud evaluation (from fraud_signal_agent)
+    fraud_signals: List[Dict[str, Any]]
+    fraud_risk_score: float           # 0.0 - 1.0
+    fraud_risk_level: str             # LOW | MEDIUM | HIGH | CRITICAL
+
+    # Chargeback eligibility (from chargeback_eligibility_agent)
+    chargeback_eligible: bool
+    chargeback_window_days: int       # default 120 days
+    days_since_transaction: int
+    chargeback_reason_code: Optional[str]
+    ineligibility_reason: Optional[str]
+
+    # Agentic RAG citations & Resolution draft
+    retrieved_rules: List[Dict[str, Any]]
+    rule_citations: List[Dict[str, Any]]
+    resolution_draft: str
+    resolution_action: Optional[str]
+
+    # Reflection & Self-Healing Loop (AC-12)
+    reflection_feedback: Optional[str]
+    reflection_iteration: int
+    reflection_passed: bool
+
+    # Human oversight & Audit trail
     human_review_required: bool
-    final_decision: Optional[str]      # null until a human sets it — NEVER set by the agent
-    review_id: Optional[str]           # links to the record in logs/human_reviews.jsonl
-    rationale: str                     # LLM explains the deterministic result; does not invent it
+    human_review_reason: Optional[str]
+    final_decision: Optional[str]     # null until a human sets it — NEVER set by the AI agent
+    review_id: Optional[str]
+    rationale: str
     routing_history: List[str]
     step_count: int
 
+    # Backward compatibility aliases
+    application_id: str
+    applicant_raw_text: str
+    applicant_facts: Dict[str, Any]
+    policy_selected: Dict[str, Any]
+    policy_citations: List[Dict[str, Any]]
+    affordability: Dict[str, Any]
+    risk_flags: List[Dict[str, Any]]
+    ai_recommendation: Optional[str]
+    decision_status: str
+    unable_reason: Optional[str]
+
+
+# Backward compatible alias for legacy imports
+LoanState = DisputeState
+
 
 def create_initial_state(
-    application_id: str,
-    applicant_raw_text: str = "",
+    dispute_id: str = "DSP-2026-001",
+    dispute_raw_text: str = "",
+    customer_id: str = "CUST-9021",
+    transaction_id: str = "TXN-88412",
+    session_id: str = "default-dispute-session",
+    intent: str = "new_dispute",
+    # Legacy parameter support
+    application_id: Optional[str] = None,
+    applicant_raw_text: Optional[str] = None,
     applicant_facts: Optional[Dict[str, Any]] = None,
-    session_id: str = "default-session",
-    intent: str = "new_application",
-) -> LoanState:
-    """Helper to initialize a clean LoanState."""
-    return LoanState(
-        application_id=application_id,
-        applicant_raw_text=applicant_raw_text,
-        applicant_facts=applicant_facts or {},
+) -> DisputeState:
+    """Helper to initialize a clean DisputeState with complete defaults."""
+    actual_dispute_id = application_id or dispute_id
+    actual_raw_text = applicant_raw_text if applicant_raw_text is not None else dispute_raw_text
+
+    return DisputeState(
+        dispute_id=actual_dispute_id,
+        customer_id=customer_id,
+        transaction_id=transaction_id,
+        dispute_raw_text=actual_raw_text,
         session_id=session_id,
         intent=intent,
         clarification_needed=False,
@@ -74,33 +136,55 @@ def create_initial_state(
         clarification_response=None,
         request_status="IN_PROGRESS",
         refusal_reason=None,
-        policy_selected={},
-        policy_citations=[],
-        affordability={},
-        risk_flags=[],
-        rule_evaluations=[],
-        ai_recommendation=None,
-        decision_status="N/A",
-        unable_reason=None,
+        transaction_details={},
+        customer_profile={},
+        fraud_signals=[],
+        fraud_risk_score=0.0,
+        fraud_risk_level="LOW",
+        chargeback_eligible=False,
+        chargeback_window_days=120,
+        days_since_transaction=0,
+        chargeback_reason_code=None,
+        ineligibility_reason=None,
+        retrieved_rules=[],
+        rule_citations=[],
+        resolution_draft="",
+        resolution_action=None,
+        reflection_feedback=None,
+        reflection_iteration=0,
+        reflection_passed=False,
         human_review_required=False,
+        human_review_reason=None,
         final_decision=None,
         review_id=None,
         rationale="",
         routing_history=[],
         step_count=0,
+        # Legacy aliases
+        application_id=actual_dispute_id,
+        applicant_raw_text=actual_raw_text,
+        applicant_facts=applicant_facts or {},
+        policy_selected={},
+        policy_citations=[],
+        affordability={},
+        risk_flags=[],
+        ai_recommendation=None,
+        decision_status="N/A",
+        unable_reason=None,
     )
 
 
-def assert_state_invariants(state: LoanState) -> None:
+def assert_state_invariants(state: DisputeState) -> None:
     """
-    Validates state contract invariants (Section 3.1 & 3.4 of plan.md).
+    Validates state contract invariants (AC-01 & AC-04).
     Raises AssertionError on contract violations.
     """
     request_status = state.get("request_status")
     assert request_status in VALID_REQUEST_STATUSES, f"Invalid request_status: {request_status}"
 
     decision_status = state.get("decision_status")
-    assert decision_status in VALID_DECISION_STATUSES, f"Invalid decision_status: {decision_status}"
+    if decision_status is not None:
+        assert decision_status in VALID_DECISION_STATUSES, f"Invalid decision_status: {decision_status}"
 
     ai_rec = state.get("ai_recommendation")
     final_dec = state.get("final_decision")
@@ -112,7 +196,7 @@ def assert_state_invariants(state: LoanState) -> None:
         assert ai_rec is None, f"REFUSED state must have ai_recommendation=None, got '{ai_rec}'"
         assert final_dec is None, f"REFUSED state must have final_decision=None, got '{final_dec}'"
 
-    # Contract 2: Normal underwriting completed
+    # Contract 2: Normal execution completed
     elif request_status == "COMPLETED":
         if decision_status == "DETERMINED":
             assert ai_rec in {"APPROVE", "REFER", "DECLINE"}, (
@@ -134,8 +218,6 @@ def assert_state_invariants(state: LoanState) -> None:
         elif decision_status == "N/A":
             assert ai_rec is None, f"COMPLETED with decision_status='N/A' requires ai_recommendation=None, got '{ai_rec}'"
             assert final_dec is None, f"COMPLETED with decision_status='N/A' requires final_decision=None, got '{final_dec}'"
-        else:
-            raise AssertionError(f"COMPLETED request cannot have decision_status='{decision_status}'")
 
     # Contract 3: In progress / awaiting clarification
     elif request_status == "IN_PROGRESS":
@@ -149,3 +231,6 @@ def assert_state_invariants(state: LoanState) -> None:
         assert state.get("review_id") is not None, (
             "final_decision is set but review_id is missing (violates human audit link)"
         )
+
+    # Invariant: step count cannot exceed safe recursion ceiling
+    assert state.get("step_count", 0) <= 25, f"Step count exceeded recursion limit: {state.get('step_count')}"

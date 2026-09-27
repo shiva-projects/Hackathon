@@ -93,17 +93,25 @@ def log_tool_call(
 def log_agent_action(
     actor: str,
     action: str,
-    tool: Optional[str],
-    decision: str,
+    tool: Optional[str] = None,
+    decision: str = "OK",
     run_id: str = "default_run",
     application_id: Optional[str] = None,
     details: Optional[Dict[str, Any]] = None,
     latency_ms: Optional[float] = None,
+    **kwargs,
 ) -> Dict[str, Any]:
     """
     Writes a consequential agent action/refusal to logs/agent_actions.jsonl.
     Per AC-10. Persists measured wall-clock latency_ms when provided.
     """
+    action_details = dict(details or {})
+    if "state" in kwargs and isinstance(kwargs["state"], dict):
+        st = kwargs["state"]
+        run_id = st.get("dispute_id") or st.get("application_id", run_id)
+        application_id = st.get("dispute_id") or st.get("application_id", application_id)
+        action_details["step_count"] = st.get("step_count")
+
     record = {
         "timestamp": get_iso_timestamp(),
         "run_id": run_id,
@@ -113,7 +121,7 @@ def log_agent_action(
         "tool": tool,
         "decision": decision,
         "latency_ms": round(float(latency_ms), 2) if latency_ms is not None else None,
-        "details": details or {},
+        "details": action_details,
     }
     return log_event("agent_action", "logs/agent_actions.jsonl", record)
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-26T18:50:49.598557+00:00",
+  "generated_at": "2026-09-27T06:36:58.098542+00:00",
   "total_test_cases": 12,
   "live_key_present": true,
   "metrics": {
@@ -49,7 +49,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The loan is recommended for **APPROVAL**. The applicant\u2019s debt\u2011to\u2011income ratio is 20.8%, well within the allowable threshold, and there are no breach flags. Consequently, the application meets all eligibility, risk, and affordability criteria.",
+        "rationale": "The deterministic underwriting engine indicates that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 20.8%, which is comfortably within the allowable threshold. Because there are no breaches flagged, the system\u2019s recommendation is to **APPROVE** the loan.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -178,7 +178,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The underwriting engine flagged the application as high risk because the requested loan amount of\u202f$3,000,000 exceeds the policy maximum of\u202f$1,500,000. Since this breach triggers a \u201cLOAN_AMOUNT_EXCEEDED\u201d condition, the system recommends a **REFER** for further review. No other risk factors were identified, and the DTI of\u202f8.0% is within acceptable limits.",
+        "rationale": "The system has flagged the application as **high risk** because the requested loan amount of\u202f$3,000,000 exceeds the maximum permissible amount of\u202f$1,500,000 for this product. Although the applicant\u2019s debt\u2011to\u2011income ratio is low (8.0%) and there are no breach flags, the oversize loan triggers a \u201cREFER\u201d recommendation for further review. Please assess whether any mitigating factors justify an exception or if the request should be declined.",
         "policy_citations": [
           {
             "policy_id": "PL-001",

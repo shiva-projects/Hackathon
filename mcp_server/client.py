@@ -12,7 +12,38 @@ from typing import Dict, Any, List, Optional
 from pydantic import AnyUrl
 
 from mcp_server.server import mcp
-from mcp.shared.memory import create_connected_server_and_client_session
+try:
+    from mcp.shared.memory import create_connected_server_and_client_session
+except ImportError:
+    from contextlib import asynccontextmanager
+    import anyio
+    from mcp.client.session import ClientSession
+    from mcp.shared.memory import create_client_server_memory_streams
+
+    @asynccontextmanager
+    async def create_connected_server_and_client_session(server, **kwargs):
+        if hasattr(server, "_mcp_server"):
+            server = server._mcp_server
+        async with create_client_server_memory_streams() as (client_streams, server_streams):
+            client_read, client_write = client_streams
+            server_read, server_write = server_streams
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(
+                    lambda: server.run(
+                        server_read,
+                        server_write,
+                        server.create_initialization_options(),
+                    )
+                )
+                try:
+                    async with ClientSession(
+                        read_stream=client_read,
+                        write_stream=client_write,
+                    ) as client_session:
+                        await client_session.initialize()
+                        yield client_session
+                finally:
+                    tg.cancel_scope.cancel()
 from langchain_mcp_adapters.tools import load_mcp_tools
 from src.observability.unified_logger import log_mcp_event, log_tool_call
 from src.observability.tracing import tracer

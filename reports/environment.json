@@ -16,5 +16,7 @@
     "gemini",
     "groq"
   ],
-  "resolution_reason": "gemini's env key absent; fell back to groq"
+  "resolution_reason": "gemini's env key absent; fell back to groq",
+  "presidio_active": true,
+  "guardrails_framework": "Layered (Domain Financial Guard + Presidio PII Engine + Regex Boundary Screen)"
 }

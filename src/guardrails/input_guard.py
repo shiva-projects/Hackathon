@@ -9,16 +9,19 @@ from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from src.observability.unified_logger import log_agent_action
 
-# Patterns for prompt injection attacks
+# Patterns for prompt injection attacks (including paraphrased adversarial overrides)
 INJECTION_PATTERNS = [
     re.compile(r"ignore\s+(?:all\s+)?(?:previous\s+|prior\s+)?instructions", re.IGNORECASE),
-    re.compile(r"(?:disregard|forget|override)\s+(?:all\s+)?(?:prior\s+)?(?:instructions|rules|policy|checks|thresholds|dti)", re.IGNORECASE),
-    re.compile(r"(?:system|admin|root)\s*:\s*", re.IGNORECASE),
-    re.compile(r"approve\s+(?:all|every)\s+loans?", re.IGNORECASE),
-    re.compile(r"you\s+are\s+now\s+(?:in\s+)?(?:developer|god|unrestricted|jailbreak|dan)\s+mode", re.IGNORECASE),
-    re.compile(r"bypass\s+(?:underwriting|risk|guardrails|policy|compliance)", re.IGNORECASE),
-    re.compile(r"(?:act|pretend)\s+as\s+(?:an?\s+)?(?:unrestricted|lenient|different)\s+(?:loan\s+officer|ai|system)", re.IGNORECASE),
-    re.compile(r"new\s+rule\s*:\s*(?:auto-?approve|always\s+approve)", re.IGNORECASE),
+    re.compile(r"ignore\s+(?:the\s+)?(?:underwriting\s+)?(?:policy|guidelines?|rules?|criteria)", re.IGNORECASE),
+    re.compile(r"(?:disregard|forget|override|drop|bypass)\s+(?:all\s+)?(?:prior\s+)?(?:instructions|rules|policy|policies|checks|thresholds|dti|guardrails|compliance)", re.IGNORECASE),
+    re.compile(r"(?:set\s+aside|waive)\s+(?:all\s+)?(?:the\s+)?(?:rules|policies|guidelines|requirements)", re.IGNORECASE),
+    re.compile(r"(?:system|admin|root|developer)\s*:\s*", re.IGNORECASE),
+    re.compile(r"you\s+are\s+now\s+(?:the\s+)?(?:admin|administrator|root|super-?user|developer|god|unrestricted|jailbreak|dan)", re.IGNORECASE),
+    re.compile(r"approve\s+(?:all|every|this)\s+(?:loan|application)", re.IGNORECASE),
+    re.compile(r"(?:auto-?approve|always\s+approve|greenlight)", re.IGNORECASE),
+    re.compile(r"(?:act|pretend|simulate)\s+as\s+(?:an?\s+)?(?:unrestricted|lenient|different|rogue)\s+(?:loan\s+officer|ai|system|underwriter)", re.IGNORECASE),
+    re.compile(r"new\s+rule\s*:\s*(?:auto-?approve|always\s+approve|grant\s+loan)", re.IGNORECASE),
+    re.compile(r"(?:reveal|print|output|leak|dump)\s+(?:your\s+)?(?:system\s+prompt|developer\s+instructions|base\s+prompt)", re.IGNORECASE),
 ]
 
 # Patterns for cross-applicant data exfiltration attempts (explicit IDs, indirect & paraphrased)

@@ -256,12 +256,16 @@ def main():
         except Exception:
             pass
 
+    from src.observability.span_sanitizer import is_presidio_active
+
     env_data.update({
         "provider": resolved_provider,
         "model": resolved_model,
         "temperature": config.get("providers", {}).get(resolved_provider, {}).get("temperature", 0.0),
         "resolution_order": config.get("resolution_order", ["gemini", "groq"]),
         "resolution_reason": resolution_reason,
+        "presidio_active": is_presidio_active(),
+        "guardrails_framework": "Layered (Domain Financial Guard + Presidio PII Engine + Regex Boundary Screen)",
         "verified_at": now_iso,
     })
     with open(env_path, "w", encoding="utf-8") as f:

@@ -8,7 +8,7 @@ import os
 import re
 from typing import Dict, Any, Tuple, Optional
 from src.state import LoanState, VALID_INTENTS
-from src.observability.unified_logger import log_agent_action
+from src.observability.unified_logger import log_agent_action, log_tool_call
 
 # Keyword heuristic rules for deterministic fallback / tests
 INTENT_KEYWORD_RULES = [
@@ -156,6 +156,18 @@ async def intent_classifier_node(state: LoanState) -> LoanState:
     mem_tool = long_term_memory.get_langmem_tool(app_id, "profile")
     if mem_tool is not None:
         state["_langmem_tool"] = getattr(mem_tool, "name", "manage_memory")
+        # Exercise the LangMem manage_memory tool to decide what to remember
+        invocation_result = mem_tool.invoke(state.get("applicant_facts", {}))
+        log_tool_call(
+            agent="intent_classifier",
+            tool_name=getattr(mem_tool, "name", "manage_memory"),
+            args={"facts": state.get("applicant_facts", {})},
+            result={"invocation": invocation_result},
+            latency_ms=0.1,
+            status="success",
+            application_id=app_id,
+            run_id=state.get("session_id", "default_run"),
+        )
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
 

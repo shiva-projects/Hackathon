@@ -56,6 +56,32 @@ def ensure_phoenix_server_running(port: int = 6006) -> bool:
         return True
 
     try:
+        import sys
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+        if hasattr(sys.stderr, "reconfigure"):
+            try:
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+        # Python 3.13 FastMCP ToolAnnotations patch if required
+        try:
+            from fastmcp.tools.function_tool import FunctionTool
+            _orig_init = FunctionTool.__init__
+            def _patched_init(self, *args, **kwargs):
+                if "data" in kwargs and isinstance(kwargs["data"], dict) and "annotations" in kwargs["data"]:
+                    ann = kwargs["data"]["annotations"]
+                    if hasattr(ann, "model_dump"):
+                        kwargs["data"]["annotations"] = ann.model_dump()
+                return _orig_init(self, *args, **kwargs)
+            FunctionTool.__init__ = _patched_init
+        except Exception:
+            pass
+
         import phoenix as px
         logger.info("[Phoenix OTEL] Auto-launching in-process Phoenix server on port %d...", port)
         _phoenix_session = px.launch_app(port=port, host="127.0.0.1", run_in_thread=True)
@@ -65,7 +91,7 @@ def ensure_phoenix_server_running(port: int = 6006) -> bool:
                 logger.info("[Phoenix OTEL] Phoenix server successfully started and listening on port %d", port)
                 return True
         logger.warning("[Phoenix OTEL] Phoenix launch_app called, port %d check timed out", port)
-        return True
+        return is_port_in_use(port)
     except Exception as e:
         logger.warning("[Phoenix OTEL] Could not auto-launch Phoenix server: %s", e)
         return False
@@ -108,7 +134,7 @@ class ExecutionTracer:
             project_name = os.environ.get("PHOENIX_PROJECT_NAME", self.project_name)
 
             # Auto-ensure Phoenix server is running so collector is live
-            ensure_phoenix_server_running(port)
+            phoenix_live = ensure_phoenix_server_running(port)
 
             # Ensure OTLPSpanExporter has _headers attribute (fixes bug in phoenix 20.16 / otel in Python 3.13)
             try:
@@ -118,22 +144,26 @@ class ExecutionTracer:
             except Exception:
                 pass
 
-            # --- Step 1: Register real OTEL TracerProvider with Phoenix OTLP exporter ---
-            try:
-                from phoenix.otel import register as phoenix_register
-                _tracer_provider = phoenix_register(
-                    project_name=project_name,
-                    endpoint=f"{endpoint_base}/v1/traces",
-                    batch=False,
-                    verbose=False,
-                )
-                logger.info(
-                    "[Phoenix OTEL] TracerProvider registered. "
-                    "OTLP exporter → %s/v1/traces (project=%s)",
-                    endpoint_base, project_name,
-                )
-            except Exception as e:
-                logger.warning("[Phoenix OTEL] register() failed (%s). Spans will NOT reach Phoenix.", e)
+            # --- Step 1: Register real OTEL TracerProvider with Phoenix OTLP exporter if server is reachable ---
+            if phoenix_live or is_port_in_use(port):
+                try:
+                    from phoenix.otel import register as phoenix_register
+                    _tracer_provider = phoenix_register(
+                        project_name=project_name,
+                        endpoint=f"{endpoint_base}/v1/traces",
+                        batch=False,
+                        verbose=False,
+                    )
+                    logger.info(
+                        "[Phoenix OTEL] TracerProvider registered. "
+                        "OTLP exporter → %s/v1/traces (project=%s)",
+                        endpoint_base, project_name,
+                    )
+                except Exception as e:
+                    logger.warning("[Phoenix OTEL] register() failed (%s). Spans will NOT reach Phoenix.", e)
+                    _tracer_provider = None
+            else:
+                logger.info("[Phoenix OTEL] Phoenix collector not active on port %d; skipping OTLP HTTP transport registration.", port)
                 _tracer_provider = None
 
             # --- Step 2: Instrument LangChain/LangGraph with the real TracerProvider ---

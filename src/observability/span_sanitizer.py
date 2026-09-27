@@ -14,23 +14,38 @@ PHONE_PATTERN = re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\
 ACCOUNT_PATTERN = re.compile(r"\b(?:ACC-?|AC-?|acc-?|\d{4}-)\d{4,12}\b")
 CREDIT_ID_PATTERN = re.compile(r"\b(?:CR-?|cr-?|PAN-?|pan-?)[A-Z0-9]{8,12}\b")
 
-# Sensitive key names to redact or mask
+# Sensitive key names to redact or mask (Canonical Policy for NFR-05 & AC-06)
 SENSITIVE_KEYS = {
+    "income",
     "income_amount",
     "raw_income",
+    "monthly_gross_income",
+    "monthly_income",
+    "monthly_obligations",
+    "existing_obligations",
+    "disposable_income",
     "account_number",
     "account_no",
     "credit_id",
+    "credit_identifier",
     "pan_number",
+    "aadhaar_number",
     "ssn",
     "phone",
     "email",
     "bank_account",
+    "bank_account_number",
+    "salary",
+    "net_income",
 }
 
-
 # Presidio PII Analyzer integration (Microsoft Presidio)
+import logging
+logger = logging.getLogger(__name__)
+
 _presidio_analyzer = None
+_presidio_active = False
+
 try:
     from presidio_analyzer import AnalyzerEngine
     from presidio_analyzer.nlp_engine import NlpEngineProvider
@@ -39,8 +54,17 @@ try:
         "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
     })
     _presidio_analyzer = AnalyzerEngine(nlp_engine=_provider.create_engine())
-except Exception:
+    _presidio_active = True
+    logger.info("[Presidio] PII Analyzer successfully initialized with spaCy en_core_web_sm.")
+except Exception as e:
     _presidio_analyzer = None
+    _presidio_active = False
+    logger.warning("[Presidio] Presidio analyzer unavailable (%s); fallback to robust domain regex sanitizer.", e)
+
+
+def is_presidio_active() -> bool:
+    """Returns True if Microsoft Presidio is active at runtime."""
+    return _presidio_active
 
 
 def sanitize_text(text: str) -> str:

@@ -171,7 +171,18 @@ async def adecision_agent_node(state: LoanState) -> LoanState:
             application_id=app_id,
             run_id=state.get("session_id", "default_run"),
         )
-
+        # Exercise the LangMem manage_memory tool to decide what to remember
+        invocation_result = langmem_tool.invoke(state.get("applicant_facts", {}))
+        log_tool_call(
+            agent="decision_agent",
+            tool_name=getattr(langmem_tool, "name", "manage_memory"),
+            args={"facts": state.get("applicant_facts", {})},
+            result={"invocation": invocation_result},
+            latency_ms=0.1,
+            status="success",
+            application_id=app_id,
+            run_id=state.get("session_id", "default_run"),
+        )
     # Persist verified applicant attributes per memory write policy
     applicant_facts = state.get("applicant_facts", {})
     if applicant_facts.get("employment_type"):

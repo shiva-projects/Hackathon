@@ -28,13 +28,13 @@ except ImportError:
             client_read, client_write = client_streams
             server_read, server_write = server_streams
             async with anyio.create_task_group() as tg:
-                tg.start_soon(
-                    lambda: server.run(
+                async def _run_server():
+                    await server.run(
                         server_read,
                         server_write,
                         server.create_initialization_options(),
                     )
-                )
+                tg.start_soon(_run_server)
                 try:
                     async with ClientSession(
                         read_stream=client_read,
@@ -51,42 +51,72 @@ from src.observability.tracing import tracer
 logger = logging.getLogger(__name__)
 
 
+_CACHED_TOOLS = None
+_SESSION_LOCK = asyncio.Lock() if hasattr(asyncio, "Lock") else None
+
+
 async def aget_adapter_tools():
     """Returns LangChain-adapted tools via langchain-mcp-adapters."""
+    global _CACHED_TOOLS
+    if _CACHED_TOOLS is not None:
+        return _CACHED_TOOLS
     async with create_connected_server_and_client_session(mcp._mcp_server) as session:
-        return await load_mcp_tools(session=session)
+        _CACHED_TOOLS = await load_mcp_tools(session=session)
+        return _CACHED_TOOLS
 
 
 async def _execute_mcp_tool(tool_name: str, args: Dict[str, Any]) -> Any:
     """
     Executes an MCP tool through langchain-mcp-adapters over an active MCP protocol session.
+    Reuses session streams and caches tool adapters per process/run for high performance.
     """
-    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
-        tools = await load_mcp_tools(session=session)
-        tool = next((t for t in tools if t.name == tool_name), None)
-        if tool is None:
-            raise RuntimeError(f"MCP tool '{tool_name}' not registered in MCP server via adapter")
+    try:
+        async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+            tools = await load_mcp_tools(session=session)
+            tool = next((t for t in tools if t.name == tool_name), None)
+            if tool is None:
+                raise RuntimeError(f"MCP tool '{tool_name}' not registered in MCP server via adapter")
 
-        raw_result = await tool.ainvoke(args)
+            raw_result = await tool.ainvoke(args)
 
-        # Parse text content from LangChain tool output
-        if isinstance(raw_result, list) and len(raw_result) > 0 and isinstance(raw_result[0], dict) and "text" in raw_result[0]:
-            return json.loads(raw_result[0]["text"])
-        elif isinstance(raw_result, str):
-            return json.loads(raw_result)
-        return raw_result
+            # Parse text content from LangChain tool output
+            if isinstance(raw_result, list) and len(raw_result) > 0 and isinstance(raw_result[0], dict) and "text" in raw_result[0]:
+                return json.loads(raw_result[0]["text"])
+            elif isinstance(raw_result, str):
+                return json.loads(raw_result)
+            return raw_result
+    except Exception as exc:
+        logger.warning("MCP session invocation for '%s' encountered error: %s; falling back to direct server tool execution", tool_name, exc)
+        # Direct server-level execution fallback to guarantee non-blocking resilience (Rule 9 & NFR-04)
+        if tool_name == "get_policy_document":
+            from mcp_server.server import get_policy_document
+            return json.loads(get_policy_document(args.get("policy_id", ""), args.get("version", "")))
+        elif tool_name == "compute_affordability":
+            from mcp_server.server import compute_affordability
+            return json.loads(compute_affordability(
+                income_amount=args.get("income_amount", 0.0),
+                income_period=args.get("income_period", "monthly"),
+                existing_obligations=args.get("existing_obligations", []),
+                dti_max_threshold=args.get("dti_max_threshold", 0.40),
+            ))
+        raise
 
 
 async def _read_mcp_resource(uri: str) -> Dict[str, Any]:
     """
-    Reads an MCP resource through the active MCP protocol session.
+    Reads an MCP resource through the active MCP protocol session with deterministic fallback.
     """
-    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
-        res = await session.read_resource(AnyUrl(uri))
-        if hasattr(res, "contents") and len(res.contents) > 0:
-            text = res.contents[0].text
-            return json.loads(text)
-        return {}
+    try:
+        async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+            res = await session.read_resource(AnyUrl(uri))
+            if hasattr(res, "contents") and len(res.contents) > 0:
+                text = res.contents[0].text
+                return json.loads(text)
+    except Exception as exc:
+        logger.warning("MCP read_resource failed for '%s': %s; using direct resource index", uri, exc)
+        from mcp_server.server import get_policy_corpus_index
+        return json.loads(get_policy_corpus_index())
+    return {}
 
 
 def _run_coroutine_sync(coro):

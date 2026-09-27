@@ -71,16 +71,7 @@ def get_policy_document(policy_id: str, version: str) -> str:
             "content": doc_content,
         }
 
-    latency_ms = (time.time() - start_time) * 1000.0
-    log_tool_call(
-        agent="mcp_server",
-        tool_name="get_policy_document",
-        args={"policy_id": policy_id, "version": version},
-        result={"found": policy_meta is not None},
-        latency_ms=latency_ms,
-        status="success" if policy_meta else "not_found",
-    )
-    # MCP tool_call is logged by client.py (authoritative MCP transcript layer)
+    # Authoritative logging is handled exclusively by mcp_server/client.py per AC-07
     return json.dumps(res, indent=2)
 
 
@@ -95,7 +86,6 @@ def compute_affordability(
     Tool 2: Deterministically computes DTI, disposable income, and policy breach flag.
     Uses pure Decimal domain functions.
     """
-    start_time = time.time()
     affordability = domain_compute_affordability(
         income_amount=income_amount,
         income_period=income_period,
@@ -103,21 +93,7 @@ def compute_affordability(
         dti_max_threshold=dti_max_threshold,
     )
     res_dict = affordability.to_dict()
-    latency_ms = (time.time() - start_time) * 1000.0
-
-    log_tool_call(
-        agent="mcp_server",
-        tool_name="compute_affordability",
-        args={
-            "income_period": income_period,
-            "dti_max_threshold": dti_max_threshold,
-            "obligations_count": len(existing_obligations),
-        },
-        result={"dti": res_dict["dti"], "breach": res_dict["breach"]},
-        latency_ms=latency_ms,
-        status="success",
-    )
-    # MCP tool_call is logged by client.py (authoritative MCP transcript layer)
+    # Authoritative logging is handled exclusively by mcp_server/client.py per AC-07
     return json.dumps(res_dict, indent=2)
 
 

@@ -331,17 +331,33 @@ def check_cross_artifact_consistency():
     failure_md = REPO_ROOT / "docs" / "failure-analysis.md"
     if failure_md.exists():
         text = failure_md.read_text(encoding="utf-8")
-        if "FAIL-001" not in text or "FAIL-002" not in text or "FAIL-003" not in text:
-            return False, "docs/failure-analysis.md missing citations for FAIL-001, FAIL-002, or FAIL-003."
-            
-    # Check golden signals source run_id
+        for fail_case in ["FAIL-001", "FAIL-002", "FAIL-003"]:
+            if fail_case not in text:
+                return False, f"docs/failure-analysis.md missing citation for {fail_case}."
+        # Deep check: verify cited failure replay spans actually exist in phoenix_spans.parquet
+        parquet_path = REPO_ROOT / "traces" / "phoenix_spans.parquet"
+        if parquet_path.exists():
+            import pandas as pd
+            df_spans = pd.read_parquet(parquet_path)
+            span_names = set(df_spans["name"].dropna().unique())
+            for expected_span in ["failure_replay_RUN-FAIL-001", "failure_replay_RUN-FAIL-002", "failure_replay_RUN-FAIL-003"]:
+                if expected_span not in span_names:
+                    return False, f"Cited failure span {expected_span} not found in traces/phoenix_spans.parquet."
+
+    # Check golden signals source run_id and match with dashboard_data.csv
     gs_path = REPO_ROOT / "reports" / "golden_signals.json"
     if gs_path.exists():
         with open(gs_path, "r", encoding="utf-8") as f:
             gs_data = json.load(f)
             if not gs_data.get("source_run_id"):
                 return False, "reports/golden_signals.json missing source_run_id."
-                
+            if "latency_by_span_type" not in gs_data or "cost_governance" not in gs_data:
+                return False, "reports/golden_signals.json missing latency_by_span_type or cost_governance telemetry."
+
+    dash_csv = REPO_ROOT / "reports" / "dashboard_data.csv"
+    if not dash_csv.exists() or dash_csv.stat().st_size == 0:
+        return False, "reports/dashboard_data.csv is missing or empty."
+
     # Check approved providers (Gemini primary -> Groq fallback per v8)
     env_path = REPO_ROOT / "reports" / "environment.json"
     if env_path.exists():
@@ -349,8 +365,8 @@ def check_cross_artifact_consistency():
             env_data = json.load(f)
             if env_data.get("provider") not in ("google", "gemini", "groq"):
                 return False, f"Provider must be google, gemini, or groq, found: {env_data.get('provider')}"
-                
-    return True, "Cross-artifact consistency checks passed across all samples, reviews, citations, and manifests."
+
+    return True, "Cross-artifact consistency checks passed across all samples, reviews, citations, manifests, and failure spans."
 
 
 def main():

@@ -211,14 +211,14 @@ def generate_golden_signals(
         ax2.set_title(f'Token Cost Breakdown ({resolved_provider.upper()} - {model_name})')
         ax2.grid(True, linestyle='--', alpha=0.5)
 
-        fig.suptitle('Locally Rendered Phoenix-Derived Telemetry Dashboard', fontsize=11)
+        fig.suptitle('Telemetry Dashboard (AC-09 Golden Signals & Phoenix Metrics)', fontsize=11)
         plt.tight_layout()
+        # Save canonical AC-09 dashboard artifact
+        plt.savefig(png_path, dpi=150)
+        # Also mirror to phoenix_derived_dashboard.png for backward-compatibility
         plt.savefig(Path("reports/phoenix_derived_dashboard.png"), dpi=150)
-        # If reports/dashboard.png does not exist or is being initialized, save here
-        if not png_path.exists():
-            plt.savefig(png_path, dpi=150)
         plt.close()
-        print(f"Locally rendered dashboard visualization saved to: reports/phoenix_derived_dashboard.png")
+        print(f"Canonical dashboard visualization saved to: {png_path}")
     except Exception as e:
         print(f"Warning: could not render dashboard image: {e}")
 

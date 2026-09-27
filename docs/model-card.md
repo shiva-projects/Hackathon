@@ -23,8 +23,8 @@
   - Automatically flags policy breaches and routes high-value loans to human underwriters.
 
 ## 3. Data & Synthetic Training Corpus
-- **Application Data**: 100% synthetic loan applications generated for testing and benchmark evaluation in [`data/sample_applications/`](..\data\sample_applications). All applicant identities, incomes, and account numbers are synthetic.
-- **Policy Corpus**: Markdown-structured retail lending policies with YAML frontmatter specifying product scope, effective dates, and quantitative thresholds in [`data/policy_corpus/`](..\data\policy_corpus).
+- **Application Data**: 100% synthetic loan applications generated for testing and benchmark evaluation in [`data/sample_applications/`](../data/sample_applications). All applicant identities, incomes, and account numbers are synthetic.
+- **Policy Corpus**: Markdown-structured retail lending policies with YAML frontmatter specifying product scope, effective dates, and quantitative thresholds in [`data/policy_corpus/`](../data/policy_corpus).
 - **PII Governance**: No real personal data is ingested, processed, or logged. Strict regex and named-entity redaction scrubs synthetic PII prior to Phoenix tracing or JSONL log persistence.
 
 ## 4. Limitations & Boundary Conditions

@@ -35,7 +35,9 @@ The initial policy selection logic used a non-strict datetime comparison that fa
 1. **Committed Control**: Rewrote [`src/policy/policy_selector.py`](../src/policy/policy_selector.py) to implement strict semi-open interval date matching:
    $$\text{effective\_from} \le \text{application\_date} < \text{effective\_to}$$
    combined with exact mandatory filtering on `product` and `jurisdiction`.
-2. **Verification**: Automated test in [`tests/test_policy_version_selection.py`](../tests/test_policy_version_selection.py) and reproduction command:
+2. **Two-Stage Symmetrical Verification**:
+   - **Step 1a (Deterministic Selector)**: Evaluates candidate policies against interval `effective_from <= 2026-06-15 < 9999-12-31`, resolving active policy version `v2.0` with verified SHA-256 integrity hash.
+   - **Step 1b (Live Multi-Agent Policy Node)**: Executes the live async LangGraph node [`apolicy_agent_node`](../src/agents/policy_agent.py) with initial state. Asserts that state is populated with `selected_policy_version = "v2.0"` and valid policy citations are attached.
    ```bash
    python scripts/reproduce_failure.py --case wrong_policy_selection
    ```
@@ -63,7 +65,9 @@ The agent node invoked `compute_affordability` directly without an asynchronous 
    - Implemented bounded async retries (`max_attempts=2`) in [`src/resilience/retry.py`](../src/resilience/retry.py).
    - Added a hard 10-second circuit breaker in [`src/resilience/timeout.py`](../src/resilience/timeout.py).
    - Created graceful fallback handler in [`src/resilience/fallback.py`](../src/resilience/fallback.py) that transitions state to `decision_status = "UNABLE_TO_COMPLETE"` with `unable_reason = "MCP_UNAVAILABLE"` and mandates human underwriter review (`human_review_required = True`).
-2. **Verification**: Automated in [`tests/test_resilience.py`](../tests/test_resilience.py) and reproduction command:
+2. **Two-Stage Symmetrical Verification**:
+   - **Step 2a (Live Circuit Breaker)**: Executes [`with_timeout`](../src/resilience/timeout.py) against a simulated stalled transport, proving the deadline timer fires cleanly and raises typed `ToolTimeoutError`.
+   - **Step 2b (Live Fallback State Machine)**: Passes the timeout failure through [`handle_mcp_failure`](../src/resilience/fallback.py), verifying deterministic transition to `decision_status = "UNABLE_TO_COMPLETE"`, `unable_reason = "MCP_UNAVAILABLE"`, `ai_recommendation = None`, and `human_review_required = True`.
    ```bash
    python scripts/reproduce_failure.py --case mcp_timeout
    ```
@@ -91,7 +95,9 @@ The prompt architecture initially allowed the LLM to synthesize the final decisi
    - Enforced **Non-Negotiable Rule 1**: LLM is barred from deciding recommendations or computing numbers. All decisions are computed by deterministic code in [`src/domain/decisions.py`](../src/domain/decisions.py).
    - In [`src/tools/rag_tool.py`](../src/tools/rag_tool.py), RAG search is strictly partitioned to chunks matching the selected policy version, each validated against its SHA256 `text_hash`.
    - In [`src/context/quarantine.py`](../src/context/quarantine.py), retrieved text is treated strictly as passive semantic context.
-2. **Verification**: Adversarially proven in [`tests/test_llm_cannot_override_rules.py`](../tests/test_llm_cannot_override_rules.py) and reproduction command:
+2. **Two-Stage Symmetrical Verification**:
+   - **Step 3a (Deterministic Domain Calculation)**: Directly invokes [`evaluate_underwriting_decision`](../src/domain/decisions.py) with 55% DTI, asserting that deterministic math yields `ai_recommendation = "REFER"` regardless of prompt instructions.
+   - **Step 3b (Live Multi-Agent Decision Node)**: Executes the live async LangGraph node [`adecision_agent_node`](../src/agents/decision_agent.py) with injected adversarial text in context, verifying live that the output recommendation remains strictly `REFER`.
    ```bash
    python scripts/reproduce_failure.py --case rag_poisoning
    ```

@@ -62,6 +62,22 @@ def test_gemini_configured_path(monkeypatch):
     assert cfg.get("env_key") == "GEMINI_API_KEY"
 
 
+def test_gemini_takes_precedence_over_groq(monkeypatch):
+    """When BOTH GEMINI_API_KEY and GROQ_API_KEY are present, Gemini takes strict precedence."""
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyLiveTestKeyForTestingOnly")
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_liveTestKey123456789")
+
+    val = validate_provider_environment()
+    assert val["has_live_key"] is True
+    assert val["active_provider"] == "gemini"
+    assert val["available_providers"] == ["gemini", "groq"]
+
+    prov, cfg = resolve_provider()
+    assert prov == "gemini"
+    assert cfg.get("chat_model") == "gemini-2.0-flash"
+
+
+
 def test_groq_configured_path(monkeypatch):
     """When GEMINI_API_KEY is absent and GROQ_API_KEY is present, Groq path is selected."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)

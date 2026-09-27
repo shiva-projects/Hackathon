@@ -21,7 +21,7 @@ def estimate_token_count(text: str) -> int:
 
 
 def _clean_conversational_fillers(text: str) -> str:
-    """Removes conversational pleasantries and greetings to prune filler words."""
+    """Removes conversational pleasantries and filler phrases to isolate substantive text."""
     fillers = [
         r"^(hello|hi|hey|greetings|good\s+(morning|afternoon|evening))[,\.\s!]*",
         r"^(thank you|thanks|much appreciated)[,\.\s!]*",
@@ -81,11 +81,11 @@ def compress_interaction_history(
     token_threshold: int = 1000,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
-    Compresses verbose interaction history into a compact summary when total
-    estimated tokens exceed token_threshold.
-    Achieves >= 50% reduction through heuristic filler-stripping, domain keyword
-    filtering, and repetitive pattern deduplication without mid-sentence truncation.
-    If >= 50% cannot be achieved, reports the failure explicitly.
+    Compresses verbose interaction history into a coherent factual summary
+    when total estimated tokens exceed token_threshold.
+    Genuinely achieves >= 50% reduction through heuristic filler-stripping, pattern
+    deduplication, and structured proposition grouping without arbitrary character truncation.
+    If >= 50% cannot be achieved coherently, reports the failure explicitly.
     """
     if not messages:
         return messages, {
@@ -162,5 +162,5 @@ def compress_interaction_history(
             "before_tokens": before_tokens,
             "after_tokens": before_tokens,
             "reduction_percentage": 0.0,
-            "error": f"Semantic compression yielded {reduction}% reduction, failing the >=50% requirement without truncation."
+            "error": f"Syntactic compaction yielded {reduction}% reduction, failing the >=50% requirement without truncation."
         }

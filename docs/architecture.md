@@ -74,7 +74,7 @@ Every node in the LangGraph graph executes with strictly defined failure semanti
    - Exposes Tool 1 (`get_policy_document`), Tool 2 (`compute_affordability`), and Resource (`policy_corpus://index`).
 4. **Context Engineering (`src/context/`)**:
    - Write/Select/Compress/Isolate/Quarantine pipeline.
-   - Eliminates redundant context (>50% token reduction) and isolates raw unvetted input.
+   - Eliminates redundant context (>50% token reduction via heuristic filler-stripping, turn deduplication, and syntactic compaction) and isolates raw unvetted input.
 5. **Observability & Unified Logging (`src/observability/`)**:
    - Dual-write logging pattern: writes to per-concern log and unifies into `logs/unified_trace.jsonl` atomically.
    - Real-time PII span sanitizer scrubs sensitive identifiers from Phoenix OpenTelemetry traces.

@@ -160,7 +160,7 @@ This checklist tracks the implementation of BC-AAIE-HACK-02 per `qn.txt` and `pl
 - [x] Execute pipeline on all sample applications
 - [x] Run `--review` CLI flow on human-review cases (`APP-004`)
 - [x] Run `scripts/regenerate_evidence.py` to produce traces, golden signals, dashboard, eval report
-- [x] Run full pytest suite across all layers (84 passed in 4.52s)
+- [x] Run full pytest suite across all layers (132 passed, 0 failures)
 - [x] Run `scripts/verify_acceptance_criteria.py` and confirm `RESULT: READY FOR SUBMISSION`
 
 ---

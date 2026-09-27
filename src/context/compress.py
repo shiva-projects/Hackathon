@@ -1,8 +1,8 @@
 """
-Context Compression and Summarization module.
-Reduces token volume on long context histories by >= 50% using semantic extraction
-while preserving factual coherence and integrity (no mid-sentence truncation).
-Per plan.md Section 13.10 & 14.21.
+Context Compression and Summarization middleware (NFR-08).
+Applies structured proposition extraction and conversational filler reduction
+to compress verbose interaction histories by >= 50% without mid-sentence truncation.
+Per AAIE_AGT_001_BFS Specification §5.2 (NFR-08).
 """
 
 import re
@@ -67,7 +67,10 @@ def _extract_core_propositions(messages: List[Dict[str, Any]]) -> List[str]:
             if any(kw in lower for kw in [
                 "loan", "income", "dti", "emi", "tenure", "obligations", "mortgage",
                 "score", "aadhaar", "pan", "document", "approved", "refer", "reject",
-                "pl-", "rule", "threshold", "prepayment", "co-borrower", "satisfies"
+                "pl-", "rule", "threshold", "prepayment", "co-borrower", "satisfies",
+                # Dispute and Fraud domain keywords (AAIE_AGT_001_BFS)
+                "dispute", "transaction", "charge", "merchant", "fraud", "chargeback",
+                "120", "reason", "credit", "card", "refund", "stolen", "unauthorized",
             ]):
                 propositions.append(f"[{role}]: {s_clean}")
 

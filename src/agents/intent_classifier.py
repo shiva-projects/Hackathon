@@ -150,6 +150,13 @@ async def intent_classifier_node(state: LoanState) -> LoanState:
     state["routing_history"].append("intent_classifier")
     state["step_count"] += 1
 
+    # Bind LangMem tool for applicant profile reflection and verified attribute lookup
+    from src.memory.long_term import long_term_memory
+    app_id = state.get("application_id", "APP-UNKNOWN")
+    mem_tool = long_term_memory.get_langmem_tool(app_id, "profile")
+    if mem_tool is not None:
+        state["_langmem_tool"] = getattr(mem_tool, "name", "manage_memory")
+
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
 
     log_agent_action(

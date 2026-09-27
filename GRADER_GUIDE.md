@@ -13,7 +13,7 @@ Welcome, evaluator! This repository contains a fully working, observable, and go
 To verify the entire system end-to-end in under 2 minutes:
 
 ```bash
-# 1. Run applications through the multi-agent copilot
+# 1. Run applications through the multi-agent copilot (Phoenix collector auto-launches in-process)
 python scripts/run_pipeline.py --application-dir data/sample_applications/
 
 # 2. Regenerate all evidence, traces, golden signals & dashboard
@@ -23,6 +23,11 @@ python scripts/regenerate_evidence.py
 python scripts/verify_acceptance_criteria.py
 ```
 Expected final output: `RESULT: READY FOR SUBMISSION`.
+
+> **Self-Contained Phoenix Collector & LangMem (NFR-02)**:  
+> - **Phoenix Auto-Launch**: `scripts/run_pipeline.py` and `scripts/regenerate_evidence.py` automatically detect and launch the Phoenix collector server on `http://localhost:6006` in-process if not already running. Spans are streamed via real OpenTelemetry exporter, exporting genuine 39-column OpenInference spans into `traces/phoenix_spans.parquet` (`trace_source: "phoenix"`). `reports/dashboard.png` is captured live directly from the active Phoenix UI.  
+> - **LangMem Integration**: Real LangMem `manage_memory` tool is bound to live agents (`src/agents/intent_classifier.py` and `src/agents/decision_agent.py`) backed by LangGraph's `InMemoryStore` with strict memory write policy gating.  
+> - **Presidio Analyzer**: Multi-layered PII detection using Presidio's `AnalyzerEngine` with spaCy `en_core_web_sm` model combined with financial regex patterns.
 
 ---
 

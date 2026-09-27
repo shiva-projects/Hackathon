@@ -1,7 +1,7 @@
 {
   "application_id": "APP-002",
-  "session_id": "SESSION-APP-002-1790447562",
-  "run_id": "RUN-20260927000139",
+  "session_id": "SESSION-APP-002-1790492723",
+  "run_id": "RUN-20260927123455",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -119,6 +119,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio is 52.0%, which exceeds the policy threshold of 40.0% for version\u202fv2.0. This breach triggers the underwriting rule that requires a referral. Therefore, the recommendation is to refer the application for further review.",
-  "timestamp": "2026-09-26T18:32:44.557946+00:00"
+  "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio is 52.0%, which exceeds the policy\u2011defined maximum of 40.0% under version\u202f2.0, triggering a breach status. Because this DTI breach violates the underwriting rule, the system automatically issues a **REFER** recommendation. The credit officer should review the file further to assess any mitigating factors before a final decision.",
+  "timestamp": "2026-09-27T07:05:25.458486+00:00"
 }

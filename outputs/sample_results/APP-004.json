@@ -1,7 +1,7 @@
 {
   "application_id": "APP-004",
-  "session_id": "SESSION-APP-004-1790447566",
-  "run_id": "RUN-20260927000139",
+  "session_id": "SESSION-APP-004-1790492727",
+  "run_id": "RUN-20260927123455",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -125,6 +125,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio of 8.0% is within acceptable limits, and no policy breaches were detected. However, the requested loan amount of $3,000,000 exceeds the policy maximum of $1,500,000, flagging a high\u2011risk condition. Therefore, the loan is recommended for referral.",
-  "timestamp": "2026-09-26T18:32:47.435442+00:00"
+  "rationale": "The system has generated a **REFER** recommendation because the requested loan amount of\u202f$3,000,000 exceeds the policy limit of\u202f$1,500,000, triggering a high\u2011risk flag (LOAN_AMOUNT_EXCEEDED). Although the applicant\u2019s debt\u2011to\u2011income ratio is low at\u202f8.0% and there is no breach status, the loan size alone disqualifies the application under the current underwriting rules. Please review the case further to determine if any exceptions or alternative structures are appropriate.",
+  "timestamp": "2026-09-27T07:05:30.957519+00:00"
 }

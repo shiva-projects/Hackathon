@@ -1,7 +1,7 @@
 {
   "application_id": "APP-011",
-  "session_id": "SESSION-APP-011-1790447567",
-  "run_id": "RUN-20260927000139",
+  "session_id": "SESSION-APP-011-1790492730",
+  "run_id": "RUN-20260927123455",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -112,6 +112,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The applicant meets all eligibility, risk, and affordability criteria, with a debt\u2011to\u2011income ratio of 20.0% and no breach status. These metrics fall comfortably within the policy\u2019s thresholds. Accordingly, the loan is approved.",
-  "timestamp": "2026-09-26T18:32:48.827743+00:00"
+  "rationale": "The underwriting engine recommends **APPROVE** because the applicant\u2019s debt\u2011to\u2011income ratio is 20.0%, well within the allowable threshold, and there are no breach flags. All eligibility, risk, and affordability criteria have been met, confirming the loan is suitable for approval.",
+  "timestamp": "2026-09-27T07:05:33.245186+00:00"
 }

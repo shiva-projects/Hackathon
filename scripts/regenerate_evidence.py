@@ -34,9 +34,12 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("STEP 1: IDENTIFYING RUN SCOPE")
+    print("STEP 1: IDENTIFYING RUN SCOPE & ENSURING PHOENIX IS ACTIVE")
     print("=" * 60)
     
+    from src.observability.tracing import ensure_phoenix_server_running
+    ensure_phoenix_server_running()
+
     latest_run_file = PROJECT_ROOT / "reports" / "latest_run.json"
     run_id = args.run_id
     if not run_id:
@@ -50,14 +53,14 @@ def main():
     print(f"Target Run ID: {run_id}")
 
     print("\n" + "=" * 60)
-    print("STEP 2: EXPORTING PHOENIX TRACES (traces/phoenix_spans.parquet)")
-    print("=" * 60)
-    export_traces(output_path="traces/phoenix_spans.parquet")
-
-    print("\n" + "=" * 60)
-    print("STEP 3: RUNNING EVALUATION (reports/eval_report.json)")
+    print("STEP 2: RUNNING EVALUATION (reports/eval_report.json)")
     print("=" * 60)
     run_eval(output_path="reports/eval_report.json")
+
+    print("\n" + "=" * 60)
+    print("STEP 3: EXPORTING PHOENIX TRACES (traces/phoenix_spans.parquet)")
+    print("=" * 60)
+    export_traces(output_path="traces/phoenix_spans.parquet")
 
     print("\n" + "=" * 60)
     print("STEP 4: GENERATING GOLDEN SIGNALS & DASHBOARD")

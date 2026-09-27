@@ -28,6 +28,49 @@ _phoenix_session = None
 _tracer_provider = None  # Real OTEL TracerProvider registered via phoenix.otel.register()
 
 
+def is_port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+    """Checks if a TCP port is open and accepting connections."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1.0)
+    try:
+        res = s.connect_ex((host, port))
+        return res == 0
+    except Exception:
+        return False
+    finally:
+        s.close()
+
+
+def ensure_phoenix_server_running(port: int = 6006) -> bool:
+    """
+    Ensures that a Phoenix collector server is actively running and accepting connections.
+    If not already running on port 6006, launches px.launch_app(port=port, host="127.0.0.1", run_in_thread=True).
+    This guarantees that the single documented pipeline run command is completely self-contained per NFR-02.
+    """
+    global _phoenix_session
+    import time
+
+    if is_port_in_use(port):
+        logger.info("[Phoenix OTEL] Phoenix collector already running on port %d", port)
+        return True
+
+    try:
+        import phoenix as px
+        logger.info("[Phoenix OTEL] Auto-launching in-process Phoenix server on port %d...", port)
+        _phoenix_session = px.launch_app(port=port, host="127.0.0.1", run_in_thread=True)
+        for _ in range(12):
+            time.sleep(0.5)
+            if is_port_in_use(port):
+                logger.info("[Phoenix OTEL] Phoenix server successfully started and listening on port %d", port)
+                return True
+        logger.warning("[Phoenix OTEL] Phoenix launch_app called, port %d check timed out", port)
+        return True
+    except Exception as e:
+        logger.warning("[Phoenix OTEL] Could not auto-launch Phoenix server: %s", e)
+        return False
+
+
 class ExecutionTracer:
     """
     Manages in-process application-level tracing spans.
@@ -63,6 +106,9 @@ class ExecutionTracer:
             port = int(os.environ.get("PHOENIX_PORT", "6006"))
             endpoint_base = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", f"http://localhost:{port}")
             project_name = os.environ.get("PHOENIX_PROJECT_NAME", self.project_name)
+
+            # Auto-ensure Phoenix server is running so collector is live
+            ensure_phoenix_server_running(port)
 
             # Ensure OTLPSpanExporter has _headers attribute (fixes bug in phoenix 20.16 / otel in Python 3.13)
             try:
@@ -150,6 +196,7 @@ class ExecutionTracer:
 
         latency_ms = (end_time - start_time) * 1000.0
         span = {
+            "span_id": f"span-{name}-{int(start_time*1000)}",
             "name": name,
             "span_kind": span_kind,  # "thinking" | "acting" | "tool"
             "start_time": start_time,
@@ -178,17 +225,29 @@ class ExecutionTracer:
 
         The trace_source column always documents where each record came from.
         """
+        global _px_client, _PHOENIX_AVAILABLE
         if not self._initialized:
             self.initialize()
         self.flush()
         out_p = Path(output_path)
         out_p.parent.mkdir(parents=True, exist_ok=True)
 
+        port = int(os.environ.get("PHOENIX_PORT", "6006"))
+        endpoint_base = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", f"http://localhost:{port}")
+        ensure_phoenix_server_running(port)
+
+        if _px_client is None:
+            try:
+                from phoenix.client import Client
+                _px_client = Client(base_url=endpoint_base)
+            except Exception as e:
+                logger.debug("Phoenix Client init in export_spans_dataframe failed: %s", e)
+
         df = None
         # Try Phoenix collector first (real OTEL spans)
         if _PHOENIX_AVAILABLE and _px_client:
             try:
-                px_df = _px_client.spans.get_spans_dataframe(project_name=self.project_name)
+                px_df = _px_client.spans.get_spans_dataframe(project_name=self.project_name, limit=10000, timeout=30)
                 if px_df is not None and not px_df.empty:
                     # Enrich Phoenix dataframe with standardized analysis columns
                     if "latency_ms" not in px_df.columns and "start_time" in px_df.columns and "end_time" in px_df.columns:
@@ -206,10 +265,9 @@ class ExecutionTracer:
                                 return "tool"
                             return "acting"
                         px_df["span_kind"] = px_df["attributes.openinference.span.kind"].apply(_map_kind)
-                    if "trace_source" not in px_df.columns:
-                        px_df["trace_source"] = "phoenix"
+                    px_df["trace_source"] = "phoenix"
                     df = px_df
-                    logger.info("[Phoenix OTEL] Retrieved %d spans from Phoenix collector.", len(df))
+                    logger.info("[Phoenix OTEL] Retrieved %d spans from Phoenix collector (%d columns, trace_source=phoenix).", len(df), len(df.columns))
             except Exception as e:
                 logger.debug("Phoenix client get_spans_dataframe unavailable: %s", e)
 
@@ -242,13 +300,26 @@ class ExecutionTracer:
         Queries Phoenix collector for number of spans currently stored.
         Returns 0 if Phoenix is unavailable or returns no data.
         """
+        global _px_client, _PHOENIX_AVAILABLE
         if not self._initialized:
             self.initialize()
         self.flush()
+
+        port = int(os.environ.get("PHOENIX_PORT", "6006"))
+        endpoint_base = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", f"http://localhost:{port}")
+        ensure_phoenix_server_running(port)
+
+        if _px_client is None:
+            try:
+                from phoenix.client import Client
+                _px_client = Client(base_url=endpoint_base)
+            except Exception:
+                pass
+
         if not (_PHOENIX_AVAILABLE and _px_client):
             return 0
         try:
-            px_df = _px_client.spans.get_spans_dataframe(project_name=self.project_name)
+            px_df = _px_client.spans.get_spans_dataframe(project_name=self.project_name, limit=10000)
             if px_df is not None and not px_df.empty:
                 return len(px_df)
         except Exception as e:

@@ -99,6 +99,8 @@ KNOWN_TOOLS = {
     # MCP client tool names (namespaced with mcp. prefix by mcp_server/client.py)
     "mcp.get_policy_document",
     "mcp.compute_affordability",
+    # LangMem memory management tool
+    "manage_memory",
 }
 
 RAW_PII_PATTERNS = [

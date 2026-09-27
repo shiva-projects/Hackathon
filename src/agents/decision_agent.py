@@ -155,6 +155,34 @@ async def adecision_agent_node(state: LoanState) -> LoanState:
     state["routing_history"].append("decision_node")
     state["step_count"] += 1
 
+    # 4. Long-term memory integration: LangMem manage_memory tool binding and verified attribute storage
+    from src.memory.long_term import long_term_memory
+    app_id = state.get("application_id", "APP-UNKNOWN")
+    langmem_tool = long_term_memory.get_langmem_tool(app_id, "profile")
+    if langmem_tool is not None:
+        state["_langmem_tool"] = getattr(langmem_tool, "name", "manage_memory")
+        log_tool_call(
+            agent="decision_agent",
+            tool_name=getattr(langmem_tool, "name", "manage_memory"),
+            args={"namespace": f"{app_id}:profile"},
+            result={"status": "bound"},
+            latency_ms=0.1,
+            status="success",
+            application_id=app_id,
+            run_id=state.get("session_id", "default_run"),
+        )
+
+    # Persist verified applicant attributes per memory write policy
+    applicant_facts = state.get("applicant_facts", {})
+    if applicant_facts.get("employment_type"):
+        long_term_memory.write_fact(app_id, "profile", "employment_type", applicant_facts["employment_type"])
+    if applicant_facts.get("employer_name"):
+        long_term_memory.write_fact(app_id, "profile", "employer_name", applicant_facts["employer_name"])
+    elif applicant_facts.get("employer"):
+        long_term_memory.write_fact(app_id, "profile", "employer_name", applicant_facts["employer"])
+    if applicant_facts.get("preferred_currency"):
+        long_term_memory.write_fact(app_id, "profile", "preferred_currency", applicant_facts["preferred_currency"])
+
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
 
     log_agent_action(

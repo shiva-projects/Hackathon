@@ -210,6 +210,10 @@ def main():
     run_id = f"RUN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     processed_app_ids = []
 
+    # Ensure Phoenix collector server is running per NFR-02 self-contained pipeline
+    from src.observability.tracing import ensure_phoenix_server_running
+    ensure_phoenix_server_running()
+
     # v8 Startup Provider Resolution & Evidence Recording (Section 5 & 8)
     from src.llm.provider_resolver import load_model_config
     from src.llm.client import get_llm_client, reset_run_provider

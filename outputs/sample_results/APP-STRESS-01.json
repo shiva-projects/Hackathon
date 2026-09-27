@@ -1,7 +1,7 @@
 {
   "application_id": "APP-STRESS-01",
-  "session_id": "SESSION-APP-STRESS-01-1790447568",
-  "run_id": "RUN-20260927000139",
+  "session_id": "SESSION-APP-STRESS-01-1790492733",
+  "run_id": "RUN-20260927123455",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -112,6 +112,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio of 25.0\u202f% comfortably falls within the acceptable range, and no policy breaches were detected. All eligibility, risk, and affordability criteria are met under policy version\u202fv2.0. Accordingly, the loan is approved.",
-  "timestamp": "2026-09-26T18:32:50.244912+00:00"
+  "rationale": "The deterministic underwriting engine has determined that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 25.0% and no breach flags. Because all criteria are satisfied, the system\u2019s recommendation is to **APPROVE** the loan.",
+  "timestamp": "2026-09-27T07:05:35.375739+00:00"
 }

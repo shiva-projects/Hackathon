@@ -1,7 +1,7 @@
 {
   "application_id": "APP-003",
-  "session_id": "SESSION-APP-003-1790447564",
-  "run_id": "RUN-20260927000139",
+  "session_id": "SESSION-APP-003-1790492725",
+  "run_id": "RUN-20260927123455",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -119,6 +119,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The loan was declined because the mandatory income_statement document was missing, violating rule PL\u2011DOC\u201102 under policy v2.0. All other criteria, including the applicant\u2019s DTI of 6.7%, were satisfied, but the absence of the required document disqualifies the application.",
-  "timestamp": "2026-09-26T18:32:46.148502+00:00"
+  "rationale": "The application was declined because it failed the mandatory eligibility rule PL\u2011DOC\u201102: the required\u202fincome_statement\u202fdocument was not provided. While the borrower\u2019s DTI is low at 6.7% and there are no breach flags, the missing income statement prevents verification of repayment capacity, so the loan cannot be approved.",
+  "timestamp": "2026-09-27T07:05:27.940455+00:00"
 }

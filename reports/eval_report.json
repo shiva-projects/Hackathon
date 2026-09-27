@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-27T06:36:58.098542+00:00",
+  "generated_at": "2026-09-27T07:08:50.362385+00:00",
   "total_test_cases": 12,
   "live_key_present": true,
   "metrics": {
@@ -49,7 +49,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine indicates that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 20.8%, which is comfortably within the allowable threshold. Because there are no breaches flagged, the system\u2019s recommendation is to **APPROVE** the loan.",
+        "rationale": "The deterministic underwriting engine confirms that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 20.8%, which is comfortably within the allowable threshold. Because there are no breaches flagged, the system\u2019s recommendation is to **APPROVE** the loan.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -92,7 +92,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio is 52.0%, which exceeds the policy\u2011defined maximum of 40.0% under version\u202f2.0, triggering a breach status. Because this DTI breach violates the underwriting rule, the system automatically generates a **REFER** recommendation. The credit officer should review the file further to assess any mitigating factors before making a final decision.",
+        "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio is 52.0%, which exceeds the policy\u2011defined maximum of 40.0% under version\u202f2.0, triggering a breach status. Because this DTI breach violates the underwriting rules, the system automatically generates a \u201cREFER\u201d recommendation for further manual review. No other factors changed the outcome.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -135,7 +135,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The loan must be declined because the applicant did not provide the mandatory income statement required by rule PL\u2011DOC\u201102. Without this essential document, we cannot verify the borrower\u2019s ability to repay, so the eligibility criteria are not met. Consequently, the recommendation remains DECLINE.",
+        "rationale": "The loan must be declined because the applicant failed the mandatory eligibility rule PL\u2011DOC\u201102, which requires an\u202fincome_statement\u202fto be on file. Since this required document is missing, the underwriting system cannot verify the borrower\u2019s ability to repay, leading to a DECLINE recommendation. No other factors (e.g., DTI) affect this decision.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -178,7 +178,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The system has flagged the application as **high risk** because the requested loan amount of\u202f$3,000,000 exceeds the maximum permissible amount of\u202f$1,500,000 for this product. Although the applicant\u2019s debt\u2011to\u2011income ratio is low (8.0%) and there are no breach flags, the oversize loan triggers a \u201cREFER\u201d recommendation for further review. Please assess whether any mitigating factors justify an exception or if the request should be declined.",
+        "rationale": "The system has flagged the application as high\u2011risk because the requested loan amount of\u202f$3,000,000 exceeds the policy maximum of\u202f$1,500,000, triggering the **LOAN_AMOUNT_EXCEEDED** rule. Although the applicant\u2019s debt\u2011to\u2011income ratio is low (8.0%) and there are no breach flags, the oversized loan amount alone warrants a **REFER** recommendation for further review.",
         "policy_citations": [
           {
             "policy_id": "PL-001",

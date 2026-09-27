@@ -14,13 +14,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.observability.tracing import tracer
+from src.observability.tracing import tracer, ensure_phoenix_server_running
 
 
 def export_traces(output_path: str = "traces/phoenix_spans.parquet") -> str:
     print(f"Exporting traces to: {output_path}")
     out_p = Path(output_path)
     out_p.parent.mkdir(parents=True, exist_ok=True)
+
+    # Ensure Phoenix server is running so collector is reachable
+    ensure_phoenix_server_running()
 
     df = tracer.export_spans_dataframe(output_path)
 
@@ -29,7 +32,7 @@ def export_traces(output_path: str = "traces/phoenix_spans.parquet") -> str:
         if "trace_source" not in df.columns:
             df["trace_source"] = "phoenix"
         df.to_parquet(out_p, index=False)
-        print(f"Exported {len(df)} spans directly from Phoenix to {output_path}.")
+        print(f"Exported {len(df)} spans directly from Phoenix to {output_path} (columns={len(df.columns)}, trace_source={df['trace_source'].iloc[0]}).")
         return output_path
 
     # Otherwise, reconstruct trace dataset from actual execution logs with exact measured wall-clock latencies

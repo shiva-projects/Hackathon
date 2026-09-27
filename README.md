@@ -99,17 +99,18 @@ Per hackathon NFR-02 and evaluation instructions, the entire system is operated 
 ```bash
 python scripts/run_pipeline.py --application-dir data/sample_applications/
 ```
-Runs all synthetic applications through the multi-agent graph, performing policy selection, affordability computation, risk screening, deterministic decision assignment, and Gemini rationale generation. Structured outputs are committed to `outputs/sample_results/`.
+Runs all synthetic applications through the multi-agent graph, performing policy selection, affordability computation, risk screening, deterministic decision assignment, and LLM rationale generation. Structured outputs are committed to `outputs/sample_results/`.  
+*Note*: The Phoenix OpenTelemetry collector server automatically starts in-process on `http://localhost:6006` if not already running (and can be monitored live at `http://localhost:6006`).
 
 ### Command 2: Regenerate Traces, Signals & Verification
 ```bash
 python scripts/regenerate_evidence.py
 ```
 Derives all downstream evidence from the completed run:
-1. Exports Phoenix OpenTelemetry spans to `traces/phoenix_spans.parquet`.
+1. Exports Phoenix OpenTelemetry spans directly from the live collector to `traces/phoenix_spans.parquet` (with 39 OpenInference columns, `trace_source: "phoenix"`).
 2. Executes the golden evaluation suite to produce `reports/eval_report.json`.
-3. Derives latency percentiles (thinking/acting/tool), token counts, and cost estimates into `reports/golden_signals.json`.
-4. Generates `reports/dashboard_data.csv` and renders `reports/dashboard.png`.
+3. Derives latency percentiles (thinking/acting/tool), token counts, and cost estimates into `reports/golden_signals.json` (`trace_source: "phoenix"`).
+4. Generates `reports/dashboard_data.csv` and captures genuine Phoenix collector UI into `reports/dashboard.png`.
 5. Runs `scripts/verify_evidence.py` to assert artifact existence and cross-artifact consistency.
 
 ### Command 3: Master Acceptance Verification Gate

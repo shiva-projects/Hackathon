@@ -1,0 +1,177 @@
+{
+  "corpus_name": "Card Dispute & Chargeback Rules",
+  "total_chunks": 19,
+  "chunks": {
+    "CARD_dispute_handling_manual_v1-chunk-000": {
+      "chunk_id": "CARD_dispute_handling_manual_v1-chunk-000",
+      "rule_code": "DISP-GEN",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "# Global Card Network Dispute & Chargeback Rules (v2.1)\n**Document ID**: `DISP-RULE-2026-v2`  \n**Effective Date**: 2026-01-01  \n**Applies To**: Visa, Mastercard, and Domestic Debit Network Disputes  \n\n---",
+      "text_hash": "48ee475fec53a5274cb4bb5f2a01937d86a4ee12fae9f6eb903c25f0ee8f5481",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "CARD_dispute_handling_manual_v1-chunk-001": {
+      "chunk_id": "CARD_dispute_handling_manual_v1-chunk-001",
+      "rule_code": "1.",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "## 1. General Dispute Filing Windows and Deadlines",
+      "text_hash": "a20ace81281125a4f7e5e4ae07e6cdcf2f2add0244c59b42ee9ad42c87bcf965",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-disp-window-001": {
+      "chunk_id": "chunk-disp-window-001",
+      "rule_code": "CR-01",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "### Rule CR-01: Standard Dispute Filing Window (120-Day Rule)\nCustomers and cardholders may dispute an unauthorized, fraudulent, or non-fulfillment transaction within **120 calendar days** from the original transaction processing date or from the agreed delivery date of merchandise/services.\n- If `dispute_date - transaction_date <= 120 days`, the dispute is **eligible** for chargeback processing under network rules.\n- If `dispute_date - transaction_date > 120 days`, network chargeback rights expire. The claim must be rejected as **OUTSIDE_CHARGEBACK_WINDOW** unless exceptional circumstances (e.g., merchant insolvency, delayed billing) apply.\n- Chunk ID: `chunk-disp-window-001`",
+      "text_hash": "ff128b91b093db388d34d9d38362a8420fb400c490a7e1a1313292916e8bb070",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-disp-credit-002": {
+      "chunk_id": "chunk-disp-credit-002",
+      "rule_code": "CR-02",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "### Rule CR-02: Provisional Credit and Cardholder Rights\nFor disputes filed within 60 days of the statement date containing the disputed transaction:\n- The issuing bank must issue provisional credit within 10 business days if the dispute involves unauthorized use or billing errors.\n- Provisional credit may be withheld or reversed if the merchant provides compelling evidence or if friendly fraud is established.\n- Chunk ID: `chunk-disp-credit-002`\n\n---",
+      "text_hash": "5c97a32a7f3b9c9806a4cd4e0acffc478cf150a9463e5a1bbf9328cda1da318c",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "CARD_dispute_handling_manual_v1-chunk-004": {
+      "chunk_id": "CARD_dispute_handling_manual_v1-chunk-004",
+      "rule_code": "2.",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "## 2. Fraud Triage and Classification Standards",
+      "text_hash": "efa4adf898bb313dbe9b11d688658d220d4570f95df2e460235ca6c8c3f86919",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-fraud-triage-003": {
+      "chunk_id": "chunk-fraud-triage-003",
+      "rule_code": "FT-01",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "### Rule FT-01: True Fraud vs. Friendly Fraud\nDisputes must be triaged into distinct operational queues based on fraud indicators:\n1. **Third-Party / Account Takeover (True Fraud)**:\n   - Cardholder asserts card was physically lost/stolen, or credentials compromised.\n   - Device fingerprint mismatch, unrecognized IP geolocation (>500km from home), or rapid multi-merchant velocity.\n   - Action: Immediate card block, reissue card, file chargeback under Reason Code 10.4 (Card-Absent Fraud).\n2. **First-Party / Friendly Fraud**:\n   - Transaction matches cardholder's usual device, recurring merchant history, or delivery address.\n   - Action: Request cardholder clarification, review household purchase history, contact merchant for proof of delivery.\n- Chunk ID: `chunk-fraud-triage-003`",
+      "text_hash": "11b18f057aa3ba0120682939e94ac190ccf5eb24fc8f94d117f09d9eaee0f4e7",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-compelling-evid-004": {
+      "chunk_id": "chunk-compelling-evid-004",
+      "rule_code": "FT-02",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "### Rule FT-02: Compelling Evidence and Merchant Proof\nA merchant can defeat an unauthorized transaction claim by submitting Compelling Evidence:\n- Proof that the item was delivered to the cardholder's billing address or verified IP address.\n- Prior undisputed transactions with the same device ID and payment credential within the past 12 months.\n- Chunk ID: `chunk-compelling-evid-004`\n\n---",
+      "text_hash": "36910eac453739cd7fe3f3e2ff714e564a8831f2fedef70a81be5b79e3a03fa9",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "CARD_dispute_handling_manual_v1-chunk-007": {
+      "chunk_id": "CARD_dispute_handling_manual_v1-chunk-007",
+      "rule_code": "3.",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "## 3. Chargeback Reason Code Mapping",
+      "text_hash": "81fae48bbbb6ddf2c75b87b73561dc1341fc35c68fab990c20b3cb477bbc4ca4",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-reason-10-4": {
+      "chunk_id": "chunk-reason-10-4",
+      "rule_code": "Reason",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "### Reason Code 10.4: Other Fraud \u2014 Card-Absent Environment\n- **Description**: Cardholder did not authorize or participate in a card-not-present (eCommerce, MOTO) transaction.\n- **Prerequisites**:\n  - No 3D-Secure (3DS / OTP) authentication liability shift was successfully completed by the merchant.\n  - Dispute filed within 120 days.\n  - Fraud score >= 0.65 or confirmed unrecognized transaction.\n- **Action**: Issue immediate chargeback to acquirer; recommend card cancellation.\n- Chunk ID: `chunk-reason-10-4`",
+      "text_hash": "12d1309a2bcf34fda63be4853e62023c90b9d03c908bed8381f506f1a8350b88",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-reason-13-1": {
+      "chunk_id": "chunk-reason-13-1",
+      "rule_code": "Reason",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "### Reason Code 13.1: Merchandise / Services Not Received\n- **Description**: The cardholder was debited but the purchased goods or services were never delivered or provided.\n- **Prerequisites**:\n  - Expected delivery date has passed.\n  - Cardholder attempted to resolve with the merchant or merchant is non-responsive.\n  - Dispute filed within 120 days of expected delivery date.\n- **Action**: Initiate chargeback under non-receipt provisions; provisional refund granted.\n- Chunk ID: `chunk-reason-13-1`",
+      "text_hash": "5f97b4b0cce143424d0b3b047315c32405daa192141f0ab7f937eeaf4e03eae7",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-reason-13-3": {
+      "chunk_id": "chunk-reason-13-3",
+      "rule_code": "Reason",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "### Reason Code 13.3: Defective or Not as Described\n- **Description**: Goods delivered were damaged, counterfeit, or materially different from the merchant's description.\n- **Prerequisites**:\n  - Cardholder returned or attempted to return the goods.\n  - Dispute filed within 120 days of receipt date.\n- **Action**: Require return shipment tracking evidence before initiating chargeback.\n- Chunk ID: `chunk-reason-13-3`",
+      "text_hash": "22673b0a6fd091019617ce38c24479ba67cc327bc05cf519f446a703ef3096f6",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-reason-10-5": {
+      "chunk_id": "chunk-reason-10-5",
+      "rule_code": "Reason",
+      "source_file": "data/dispute_rules/CARD_dispute_handling_manual_v1.md",
+      "text": "### Reason Code 10.5: Fraudulent Transaction \u2014 Card-Present\n- **Description**: Counterfeit magnetic stripe or unauthorized contactless swipe without PIN verification.\n- **Prerequisites**: EMV chip fallback transaction or non-PIN card present swipe.\n- **Action**: Escalate to Fraud Operations for card skimming investigation.\n- Chunk ID: `chunk-reason-10-5`",
+      "text_hash": "a5071f854eebdb386976d68bfb12a5ea3c526d566982405c8ecbc8ad119b2c59",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "CHARGEBACK_reason_codes_v1-chunk-000": {
+      "chunk_id": "CHARGEBACK_reason_codes_v1-chunk-000",
+      "rule_code": "DISP-GEN",
+      "source_file": "data/dispute_rules/CHARGEBACK_reason_codes_v1.md",
+      "text": "# Comprehensive Chargeback Reason Codes Reference\n**Document ID**: `CB-CODES-2026-v1`  \n**Applicability**: Card Dispute Resolution Guidelines  \n\n---",
+      "text_hash": "b1ddc2d847bfda7e322f899bebeea9d006e7bdb8d789f7a5af8f67b1c3ee131e",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-cb-4837-noauth": {
+      "chunk_id": "chunk-cb-4837-noauth",
+      "rule_code": "Code",
+      "source_file": "data/dispute_rules/CHARGEBACK_reason_codes_v1.md",
+      "text": "### Code 4837 / 10.4: No Cardholder Authorization\n- Used when a cardholder explicitly denies making or authorizing the transaction.\n- Standard timeframe: 120 calendar days from transaction date.\n- Key criteria:\n  - If 3DS (3-Domain Secure) authentication was validated, liability remains with issuer; chargeback is denied unless merchant is in an excessive fraud program.\n  - If transaction was standard SSL e-commerce without OTP/3DS, liability lies with acquirer/merchant.\n- Chunk ID: `chunk-cb-4837-noauth`",
+      "text_hash": "515f61c19334a1b70296ac44f7f61895d58eaec615b86e5b2b2d27eb4d018dc3",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-cb-4840-proc": {
+      "chunk_id": "chunk-cb-4840-proc",
+      "rule_code": "Code",
+      "source_file": "data/dispute_rules/CHARGEBACK_reason_codes_v1.md",
+      "text": "### Code 4840 / 10.5: Fraudulent Processing of Transactions\n- Used when multiple authorizations or invalid account number processing occur.\n- Standard timeframe: 120 calendar days from transaction date.\n- Chunk ID: `chunk-cb-4840-proc`\n\n---",
+      "text_hash": "32ea32267a002187c03ed66f1bd9869ea17db680af14da8a2d991e660d5f9c65",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "CHARGEBACK_reason_codes_v1-chunk-004": {
+      "chunk_id": "CHARGEBACK_reason_codes_v1-chunk-004",
+      "rule_code": "2.",
+      "source_file": "data/dispute_rules/CHARGEBACK_reason_codes_v1.md",
+      "text": "## 2. Consumer Dispute & Non-Fulfillment Category Codes",
+      "text_hash": "9b4603048d7152126bd59a0026ada7a813ca910fadb3102f304bfac2c5313806",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-cb-4853-notrec": {
+      "chunk_id": "chunk-cb-4853-notrec",
+      "rule_code": "Code",
+      "source_file": "data/dispute_rules/CHARGEBACK_reason_codes_v1.md",
+      "text": "### Code 4853 / 13.1: Goods or Services Not Provided\n- The cardholder engaged in the transaction, but merchandise was not received by the promised delivery date.\n- Cardholder must wait until agreed delivery date has elapsed before filing.\n- Window: 120 days from transaction date or agreed delivery date, whichever is later (maximum 540 days from original transaction date).\n- Chunk ID: `chunk-cb-4853-notrec`",
+      "text_hash": "9dfa7c45f0c328abcf9a46b22592640062434a35a076aff30a499c4361d2f610",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-cb-4855-recurring": {
+      "chunk_id": "chunk-cb-4855-recurring",
+      "rule_code": "Code",
+      "source_file": "data/dispute_rules/CHARGEBACK_reason_codes_v1.md",
+      "text": "### Code 4855 / 13.2: Cancelled Recurring Transaction\n- The cardholder withdrew authorization for recurring billing (e.g., subscription, gym membership), but the merchant continued billing.\n- Cardholder must provide date and method of cancellation notification to merchant.\n- Timeframe: 120 days from the latest disputed billing date.\n- Action: Immediate merchant dispute; require cardholder to submit cancellation confirmation email.\n- Chunk ID: `chunk-cb-4855-recurring`",
+      "text_hash": "6737a8abae56bb3c65275482625ba3aa5de23f7b3f3d381b56f09776c15c37c2",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    },
+    "chunk-cb-4834-duplicate": {
+      "chunk_id": "chunk-cb-4834-duplicate",
+      "rule_code": "Code",
+      "source_file": "data/dispute_rules/CHARGEBACK_reason_codes_v1.md",
+      "text": "### Code 4834 / 12.5: Point of Interaction Error / Duplicate Charge\n- The cardholder was billed multiple times for a single purchase, or billed an incorrect amount.\n- Timeframe: 120 days from transaction date.\n- Evidence required: Statement showing multiple identical charges with same authorization code or receipt showing differing amount.\n- Chunk ID: `chunk-cb-4834-duplicate`",
+      "text_hash": "cf9f06c30ec47684ba33f4cd15b267314a5497c56ba1bbe7097708fc468dd0a7",
+      "policy_id": "DISPUTE_RULES_2026",
+      "version": "v1.0"
+    }
+  }
+}

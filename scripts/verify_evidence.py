@@ -56,6 +56,7 @@ REQUIRED_FILES = [
     "reports/environment.json",
     
     # Governance Docs
+    "docs/business-case.md",
     "docs/risk-register.md",
     "docs/model-card.md",
     "docs/compliance.md",
@@ -68,6 +69,10 @@ REQUIRED_FILES = [
     "README.md",
     
     # Tests
+    "tests/test_dispute_agents.py",
+    "tests/test_dispute_rag.py",
+    "tests/test_reflection_loop.py",
+    "tests/test_memory_eviction.py",
     "tests/test_routing.py",
     "tests/test_loops.py",
     "tests/test_tool_contracts.py",
@@ -99,6 +104,14 @@ KNOWN_TOOLS = {
     # MCP client tool names (namespaced with mcp. prefix by mcp_server/client.py)
     "mcp.get_policy_document",
     "mcp.compute_affordability",
+    # Dispute & Fraud Copilot tools (AAIE_AGT_001_BFS)
+    "transaction_lookup",
+    "customer_profile",
+    "fraud_rules",
+    "retrieve_dispute_rules",
+    "mcp.transaction_lookup",
+    "mcp.customer_profile",
+    "mcp.fraud_rules",
     # LangMem memory management tool
     "manage_memory",
 }

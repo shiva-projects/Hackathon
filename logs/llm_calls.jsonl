@@ -563,3 +563,9 @@
 {"timestamp": "2026-09-27T12:18:47.053695+00:00", "run_id": "default-session", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 101, "output_tokens": 18, "latency_ms": 1.71}
 {"timestamp": "2026-09-27T12:18:51.442457+00:00", "run_id": "S-NEW-01", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 101, "output_tokens": 70, "latency_ms": 1293.07}
 {"timestamp": "2026-09-27T12:19:46.215144+00:00", "run_id": "S-STATUS-01", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 181, "output_tokens": 3, "latency_ms": 646.71}
+{"timestamp": "2026-09-27T13:25:20.375378+00:00", "run_id": "DSP-AC02-TEST", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 106, "output_tokens": 502, "latency_ms": 2163.56}
+{"timestamp": "2026-09-27T13:26:44.512451+00:00", "run_id": "DSP-RAG-TEST", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 102, "output_tokens": 461, "latency_ms": 1934.16}
+{"timestamp": "2026-09-27T13:26:46.474227+00:00", "run_id": "DSP-REFLECT-001", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 102, "output_tokens": 420, "latency_ms": 1642.07}
+{"timestamp": "2026-09-27T13:34:25.619134+00:00", "run_id": "DSP-AC02-TEST", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 106, "output_tokens": 543, "latency_ms": 2335.96}
+{"timestamp": "2026-09-27T13:34:28.135662+00:00", "run_id": "DSP-RAG-TEST", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 102, "output_tokens": 462, "latency_ms": 1790.76}
+{"timestamp": "2026-09-27T13:34:30.183499+00:00", "run_id": "DSP-REFLECT-001", "provider": "groq", "model": "openai/gpt-oss-120b", "input_tokens": 102, "output_tokens": 461, "latency_ms": 1811.73}

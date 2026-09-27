@@ -27,7 +27,7 @@ Expected final output: `RESULT: READY FOR SUBMISSION`.
 > **Self-Contained Phoenix Collector & LangMem (NFR-02)**:  
 > - **Phoenix Auto-Launch**: `scripts/run_pipeline.py` and `scripts/regenerate_evidence.py` automatically detect and launch the Phoenix collector server on `http://localhost:6006` in-process if not already running. Spans are streamed via real OpenTelemetry exporter, exporting genuine 39-column OpenInference spans into `traces/phoenix_spans.parquet` (`trace_source: "phoenix"`). `reports/dashboard.png` is captured live directly from the active Phoenix UI.  
 > - **LangMem Integration**: Real LangMem `manage_memory` tool is bound to live agents (`src/agents/intent_classifier.py` and `src/agents/decision_agent.py`) backed by LangGraph's `InMemoryStore` with strict memory write policy gating.  
-> - **Presidio Analyzer**: Multi-layered PII detection using Presidio's `AnalyzerEngine` with spaCy `en_core_web_sm` model combined with financial regex patterns.
+> - **Presidio Analyzer**: Multi-layered PII detection using Presidio's `AnalyzerEngine` with spaCy `en_core_web_lg` model (upgraded from sm; higher NER recall for financial PII) combined with financial regex patterns.
 
 ---
 

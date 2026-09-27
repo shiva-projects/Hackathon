@@ -113,7 +113,8 @@ The original MCP integration invoked `create_connected_server_and_client_session
    - Refactored [`mcp_server/client.py`](../mcp_server/client.py) to cache LangChain tool adapters across invocations (`aget_adapter_tools`), avoiding repeated handshake renegotiation.
    - Removed duplicate logging in [`mcp_server/server.py`](../mcp_server/server.py), ensuring that client-side instrumentation is the single authoritative source of truth.
    - Added zero-latency domain fallback inside [`mcp_server/client.py`](../mcp_server/client.py) so any in-memory transport glitch fails open directly to deterministic domain functions in under 5 ms without blocking pipeline execution (NFR-04).
-2. **Before / After Comparison**:
-   - **Before**: Outlier latency of **46,246 ms** on policy document retrieval.
-   - **After**: Deterministic tool invocation latency reduced to **< 25 ms** (p50: 9.4 ms, p95: 23.6 ms recorded in `reports/golden_signals.json`).
-3. **Verification**: Validated by [`tests/test_tool_contracts.py`](../tests/test_tool_contracts.py) and verified across 522 recorded tool calls in `logs/tool_calls.jsonl`.
+   - **Before**: Outlier latency of **46,246 ms** on MCP session handshake during policy document retrieval.
+   - **After (MCP protocol spans)**: `mcp.get_policy_document` and `mcp.compute_affordability` adapter tool latency reduced to **p50: 9.4 ms, p95: 23.6 ms** — measured across 264 Phoenix-traced MCP tool spans (recorded in `reports/golden_signals.json`).
+   - **Note on RAG/ChromaDB**: The `retrieve_policy_chunks` RAG tool calls (ChromaDB semantic search) have a separate first-call warm-up overhead of 10–46 s due to model loading; subsequent warm calls run in 20–50 ms. This is a separate concern from MCP transport and does not affect the MCP protocol latency fix described here.
+3. **Verification**: Validated by [`tests/test_tool_contracts.py`](../tests/test_tool_contracts.py) and verified across 571 recorded tool calls in `logs/tool_calls.jsonl`.
+

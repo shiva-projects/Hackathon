@@ -45,17 +45,32 @@ logger = logging.getLogger(__name__)
 
 _presidio_analyzer = None
 _presidio_active = False
+_presidio_model_name = "unavailable"
 
-try:
+def _init_presidio():
+    global _presidio_analyzer, _presidio_active, _presidio_model_name
     from presidio_analyzer import AnalyzerEngine
     from presidio_analyzer.nlp_engine import NlpEngineProvider
-    _provider = NlpEngineProvider(nlp_configuration={
-        "nlp_engine_name": "spacy",
-        "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
-    })
-    _presidio_analyzer = AnalyzerEngine(nlp_engine=_provider.create_engine())
-    _presidio_active = True
-    logger.info("[Presidio] PII Analyzer successfully initialized with spaCy en_core_web_sm.")
+    # Prefer the large model (better NER accuracy for financial entities) but fall back to small
+    for model_name in ("en_core_web_lg", "en_core_web_sm"):
+        try:
+            _provider = NlpEngineProvider(nlp_configuration={
+                "nlp_engine_name": "spacy",
+                "models": [{"lang_code": "en", "model_name": model_name}],
+            })
+            _presidio_analyzer = AnalyzerEngine(nlp_engine=_provider.create_engine())
+            _presidio_active = True
+            _presidio_model_name = model_name
+            logger.info("[Presidio] PII Analyzer initialized with spaCy %s.", model_name)
+            return
+        except Exception as inner_e:
+            logger.debug("[Presidio] Could not load %s: %s — trying next model.", model_name, inner_e)
+    _presidio_analyzer = None
+    _presidio_active = False
+    logger.warning("[Presidio] No spaCy model available; falling back to regex-only sanitizer.")
+
+try:
+    _init_presidio()
 except Exception as e:
     _presidio_analyzer = None
     _presidio_active = False

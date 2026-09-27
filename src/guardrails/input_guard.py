@@ -17,6 +17,8 @@ INJECTION_PATTERNS = [
     re.compile(r"(?:set\s+aside|waive)\s+(?:all\s+)?(?:the\s+)?(?:rules|policies|guidelines|requirements)", re.IGNORECASE),
     re.compile(r"(?:system|admin|root|developer)\s*:\s*", re.IGNORECASE),
     re.compile(r"you\s+are\s+now\s+(?:the\s+)?(?:admin|administrator|root|super-?user|developer|god|unrestricted|jailbreak|dan)", re.IGNORECASE),
+    re.compile(r"(?:now\s+in|entering|switch\s+to)\s+(?:developer|jailbreak|god|unrestricted|admin)\s+mode", re.IGNORECASE),
+    re.compile(r"(?:bypass|skip|circumvent|override)\s+(?:the\s+)?(?:underwriting|approval|decision|review|eligibility|assessment|check|guardrail|policy|compliance)\s*(?:process|engine|step|logic|rules?|checks?)?", re.IGNORECASE),
     re.compile(r"approve\s+(?:all|every|this)\s+(?:loan|application)", re.IGNORECASE),
     re.compile(r"(?:auto-?approve|always\s+approve|greenlight)", re.IGNORECASE),
     re.compile(r"(?:act|pretend|simulate)\s+as\s+(?:an?\s+)?(?:unrestricted|lenient|different|rogue)\s+(?:loan\s+officer|ai|system|underwriter)", re.IGNORECASE),

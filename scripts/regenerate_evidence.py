@@ -58,6 +58,14 @@ def main():
     run_eval(output_path="reports/eval_report.json")
 
     print("\n" + "=" * 60)
+    print("STEP 2b: REPLAYING DETERMINISTIC FAILURE CASES (AC-08)")
+    print("=" * 60)
+    from scripts.reproduce_failure import reproduce_wrong_policy_selection, reproduce_mcp_timeout, reproduce_rag_poisoning
+    reproduce_wrong_policy_selection()
+    reproduce_mcp_timeout()
+    reproduce_rag_poisoning()
+
+    print("\n" + "=" * 60)
     print("STEP 3: EXPORTING PHOENIX TRACES (traces/phoenix_spans.parquet)")
     print("=" * 60)
     export_traces(output_path="traces/phoenix_spans.parquet")

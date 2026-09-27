@@ -29,32 +29,19 @@ def generate_llm_rationale(
 ) -> str:
     """
     Invokes the resolved LLM provider synchronously to explain the deterministic decision in prose.
+    Delegates to agenerate_llm_rationale to maintain a single source of truth without code duplication.
     """
-    has_live_key = has_live_provider_key()
-    if not has_live_key:
-        rule_citations = ", ".join([c.get("rule_id", "PL-07") for c in citations]) or "PL-07"
-        return (
-            f"AI recommendation: {recommendation}. "
-            f"Based on policy {policy_version} ({rule_citations}), the applicant's DTI is {float(affordability.dti):.1%}. "
-            + " ".join(reasons)
+    from mcp_server.client import _run_coroutine_sync
+    return _run_coroutine_sync(
+        agenerate_llm_rationale(
+            recommendation=recommendation,
+            affordability=affordability,
+            reasons=reasons,
+            policy_version=policy_version,
+            citations=citations,
+            run_id=run_id,
         )
-
-    try:
-        prompt = (
-            f"You are a loan underwriting assistant. Explain the following deterministic underwriting result:\n"
-            f"Recommendation: {recommendation}\n"
-            f"Policy Version: {policy_version}\n"
-            f"DTI: {float(affordability.dti):.1%}\n"
-            f"Breach Status: {affordability.breach}\n"
-            f"Reasons: {'; '.join(reasons)}\n"
-            f"Instructions: Write a clear 2-3 sentence explanation for the credit officer. "
-            f"Do not alter the recommendation. Do not invent new figures."
-        )
-        return invoke_with_resilience(prompt, run_id=run_id)
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Sync LLM rationale generation failed ({e}), using deterministic fallback.")
-        return GEMINI_FALLBACK_RATIONALE
+    )
 
 
 async def agenerate_llm_rationale(

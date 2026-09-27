@@ -79,6 +79,16 @@ def reproduce_wrong_policy_selection():
         error="Selected expired policy version v1.0",
     )
 
+    tracer.record_span(
+        name=f"failure_replay_{run_id}",
+        span_kind="acting",
+        start_time=t_start,
+        end_time=t_end,
+        inputs={"run_id": run_id, "span_id": span_id},
+        outputs={"status": "replayed", "case": fixture.get("case_id")},
+        run_id=run_id,
+        step_id=span_id,
+    )
     try:
         from langchain_core.runnables import RunnableLambda
         RunnableLambda(lambda x: x, name=f"failure_replay_{run_id}").invoke({"run_id": run_id, "span_id": span_id})
@@ -144,6 +154,16 @@ def reproduce_mcp_timeout():
         error="MCP transport timed out after 10.0s",
     )
 
+    tracer.record_span(
+        name=f"failure_replay_{run_id}",
+        span_kind="acting",
+        start_time=t_start,
+        end_time=t_end,
+        inputs={"run_id": run_id, "span_id": span_id},
+        outputs={"status": "replayed", "case": fixture.get("case_id")},
+        run_id=run_id,
+        step_id=span_id,
+    )
     try:
         from langchain_core.runnables import RunnableLambda
         RunnableLambda(lambda x: x, name=f"failure_replay_{run_id}").invoke({"run_id": run_id, "span_id": span_id})
@@ -214,6 +234,16 @@ def reproduce_rag_poisoning():
         step_id=span_id,
     )
 
+    tracer.record_span(
+        name=f"failure_replay_{run_id}",
+        span_kind="acting",
+        start_time=t_start,
+        end_time=t_end,
+        inputs={"run_id": run_id, "span_id": span_id},
+        outputs={"status": "replayed", "case": fixture.get("case_id")},
+        run_id=run_id,
+        step_id=span_id,
+    )
     try:
         from langchain_core.runnables import RunnableLambda
         RunnableLambda(lambda x: x, name=f"failure_replay_{run_id}").invoke({"run_id": run_id, "span_id": span_id})

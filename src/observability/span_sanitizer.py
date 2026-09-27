@@ -51,8 +51,11 @@ def _init_presidio():
     global _presidio_analyzer, _presidio_active, _presidio_model_name
     from presidio_analyzer import AnalyzerEngine
     from presidio_analyzer.nlp_engine import NlpEngineProvider
-    # Prefer the large model (better NER accuracy for financial entities) but fall back to small
-    for model_name in ("en_core_web_lg", "en_core_web_sm"):
+    import spacy.util
+    # Only load models that are actually installed locally to avoid blocking network downloads
+    installed = [m for m in ("en_core_web_sm", "en_core_web_lg") if spacy.util.is_package(m)]
+    models_to_try = installed if installed else ["en_core_web_sm"]
+    for model_name in models_to_try:
         try:
             _provider = NlpEngineProvider(nlp_configuration={
                 "nlp_engine_name": "spacy",

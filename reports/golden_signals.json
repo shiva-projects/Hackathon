@@ -1,42 +1,42 @@
 {
-  "generated_at": "2026-09-27T09:38:53.149719+00:00",
+  "generated_at": "2026-09-27T12:08:44.115492+00:00",
   "source_run_id": "RUN-PHOENIX-CURRENT",
-  "trace_source": "phoenix",
+  "trace_source": "reconstructed",
   "provider": "groq",
   "model": "openai/gpt-oss-20b",
   "latency_by_span_type": {
     "thinking": {
-      "p50_ms": 960.53,
-      "p95_ms": 11047.27,
-      "count": 315
+      "p50_ms": 1187.46,
+      "p95_ms": 11986.53,
+      "count": 737
     },
     "acting": {
-      "p50_ms": 5.02,
-      "p95_ms": 1275.7,
-      "count": 2819
+      "p50_ms": 59.0,
+      "p95_ms": 13744.49,
+      "count": 465
     },
     "tool": {
-      "p50_ms": 9.41,
-      "p95_ms": 23.64,
-      "count": 264
+      "p50_ms": 15.38,
+      "p95_ms": 8805.83,
+      "count": 698
     },
     "end_to_end": {
-      "p50_ms": 10.49,
-      "p95_ms": 1739.18,
-      "count": 3398
+      "p50_ms": 53.64,
+      "p95_ms": 11754.28,
+      "count": 1900
     }
   },
   "token_usage": {
-    "input_tokens": 159370,
-    "output_tokens": 40116,
-    "total_tokens": 199486,
+    "input_tokens": 200987,
+    "output_tokens": 50680,
+    "total_tokens": 251667,
     "source": "measured"
   },
   "cost_governance": {
     "cost_config_used": "reports/cost_config.json",
     "resolved_provider": "groq",
     "pricing_source": "https://console.groq.com/docs/models",
-    "estimated_cost_usd": 0.069886
+    "estimated_cost_usd": 0.088187
   },
   "evaluation_metrics": {
     "routing_accuracy": 1.0,
@@ -48,6 +48,6 @@
     "hallucination_rate": 0.0,
     "faithfulness": 1.0,
     "deepeval_method": "DeepEval(judge=groq:openai/gpt-oss-120b)",
-    "deepeval_cases_evaluated": 4
+    "deepeval_cases_evaluated": 12
   }
 }

@@ -25,7 +25,10 @@ def _get_embedding_model():
     if _EMBEDDING_MODEL is None:
         try:
             from sentence_transformers import SentenceTransformer
-            _EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+            try:
+                _EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+            except Exception:
+                _EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
         except Exception as e:
             print(f"Warning: could not load SentenceTransformer: {e}")
             _EMBEDDING_MODEL = None

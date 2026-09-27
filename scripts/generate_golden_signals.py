@@ -215,8 +215,6 @@ def generate_golden_signals(
         plt.tight_layout()
         # Save canonical AC-09 dashboard artifact
         plt.savefig(png_path, dpi=150)
-        # Also mirror to phoenix_derived_dashboard.png for backward-compatibility
-        plt.savefig(Path("reports/phoenix_derived_dashboard.png"), dpi=150)
         plt.close()
         print(f"Canonical dashboard visualization saved to: {png_path}")
     except Exception as e:

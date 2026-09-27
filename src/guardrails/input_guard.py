@@ -66,12 +66,62 @@ def screen_input(
             quarantined_text="<QUARANTINED_DATA></QUARANTINED_DATA>",
         )
 
-    # 1. Screen for cross-applicant attempts
+    # 1. Primary evaluation via Guardrails-AI validator suite
+    from src.guardrails.guardrails_ai_validator import validate_input_with_guardrails
+    gr_res = validate_input_with_guardrails(raw_text, current_application_id)
+
+    if not gr_res.is_safe:
+        from src.context.quarantine import quarantine_untrusted_text
+        quarantined = quarantine_untrusted_text(raw_text)
+
+        if gr_res.cross_applicant_detected:
+            target_id = gr_res.target_applicant or "ANOTHER_APPLICANT"
+            log_agent_action(
+                actor="input_guard",
+                action="cross_applicant_attempt_refused",
+                tool=None,
+                decision="REFUSED",
+                run_id=run_id,
+                application_id=current_application_id,
+                details={
+                    "refusal_reason": "CROSS_APPLICANT_ACCESS",
+                    "queried_target": target_id,
+                    "engine": gr_res.validator_engine,
+                },
+            )
+            return InputGuardResult(
+                is_safe=False,
+                quarantined_text=quarantined,
+                rejection_reason="CROSS_APPLICANT_ACCESS",
+                cross_applicant_detected=True,
+                target_applicant=target_id,
+            )
+
+        if gr_res.injection_detected:
+            log_agent_action(
+                actor="input_guard",
+                action="prompt_injection_detected",
+                tool=None,
+                decision="QUARANTINED",
+                run_id=run_id,
+                application_id=current_application_id,
+                details={
+                    "refusal_reason": "SECURITY_SENSITIVE_REQUEST",
+                    "engine": gr_res.validator_engine,
+                },
+            )
+            return InputGuardResult(
+                is_safe=False,
+                quarantined_text=quarantined,
+                rejection_reason="SECURITY_SENSITIVE_REQUEST",
+                injection_detected=True,
+            )
+
+    # 2. Secondary pattern verification layer for domain pattern coverage
     for pattern in CROSS_APPLICANT_PATTERNS:
         match = pattern.search(raw_text)
         if match:
             target_id = match.group(1) if match.groups() else "ANOTHER_APPLICANT"
-            # If the user is asking about a different application ID
             if target_id.upper() != current_application_id.upper():
                 log_agent_action(
                     actor="input_guard",
@@ -93,7 +143,6 @@ def screen_input(
                     target_applicant=target_id,
                 )
 
-    # 2. Screen for prompt injection
     injection_found = False
     for pattern in INJECTION_PATTERNS:
         if pattern.search(raw_text):

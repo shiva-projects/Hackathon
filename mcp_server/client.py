@@ -177,14 +177,11 @@ class MCPSessionPool:
 
             raise RuntimeError("No active MCP session available in pool")
         except Exception as exc:
-            logger.warning("MCP read_resource failed for '%s': %s; using direct resource fallback", uri, exc)
-            if "dispute" in uri:
-                from mcp_server.server import get_dispute_handling_manual
-                return get_dispute_handling_manual()
+            logger.warning("MCP read_resource failed for '%s': %s; using direct resource index", uri, exc)
             from mcp_server.server import get_policy_corpus_index
             return json.loads(get_policy_corpus_index())
 
-    def read_resource_sync(self, uri: str, session_id: Optional[str] = None) -> Any:
+    def read_resource_sync(self, uri: str, session_id: Optional[str] = None) -> Dict[str, Any]:
         try:
             if self._worker_loop and self._worker_loop.is_running() and self._worker_session:
                 future = asyncio.run_coroutine_threadsafe(self._worker_session.read_resource(AnyUrl(uri)), self._worker_loop)
@@ -192,25 +189,13 @@ class MCPSessionPool:
                 return self._format_resource(res)
             return _run_coroutine_sync(self.read_resource(uri, session_id))
         except Exception as exc:
-            logger.warning("MCP read_resource failed for '%s': %s; using direct resource fallback", uri, exc)
-            if "dispute" in uri:
-                from mcp_server.server import get_dispute_handling_manual
-                return get_dispute_handling_manual()
+            logger.warning("MCP read_resource failed for '%s': %s; using direct resource index", uri, exc)
             from mcp_server.server import get_policy_corpus_index
             return json.loads(get_policy_corpus_index())
 
     @staticmethod
     def _fallback_tool_execution(tool_name: str, args: Dict[str, Any]) -> Any:
-        if tool_name == "transaction_lookup":
-            from mcp_server.server import transaction_lookup
-            return json.loads(transaction_lookup(args.get("transaction_id", "")))
-        elif tool_name == "customer_profile":
-            from mcp_server.server import customer_profile
-            return json.loads(customer_profile(args.get("customer_id", "")))
-        elif tool_name == "fraud_rules":
-            from mcp_server.server import fraud_rules
-            return json.loads(fraud_rules(args.get("transaction_id", ""), args.get("signals", [])))
-        elif tool_name == "get_policy_document":
+        if tool_name == "get_policy_document":
             from mcp_server.server import get_policy_document
             return json.loads(get_policy_document(args.get("policy_id", ""), args.get("version", "")))
         elif tool_name == "compute_affordability":
@@ -232,13 +217,9 @@ class MCPSessionPool:
         return raw_result
 
     @staticmethod
-    def _format_resource(res: Any) -> Any:
+    def _format_resource(res: Any) -> Dict[str, Any]:
         if hasattr(res, "contents") and len(res.contents) > 0:
-            text = res.contents[0].text
-            try:
-                return json.loads(text)
-            except Exception:
-                return text
+            return json.loads(res.contents[0].text)
         return {}
 
 
@@ -450,165 +431,6 @@ class MCPClient:
             event_type="tool_call",
             resource_or_tool="compute_affordability",
             caller="eligibility_agent",
-            details=res,
-        )
-        return res
-
-    @classmethod
-    def read_dispute_manual(cls) -> str:
-        """Reads dispute-handling-manual://rules resource via MCP protocol."""
-        return _run_coroutine_sync(cls.aread_dispute_manual())
-
-    @classmethod
-    async def aread_dispute_manual(cls) -> str:
-        """Asynchronously reads dispute-handling-manual://rules resource via MCP protocol."""
-        start_time = time.time()
-        try:
-            data = await _read_mcp_resource("dispute-handling-manual://rules")
-            latency_ms = (time.time() - start_time) * 1000.0
-            log_mcp_event(
-                event_type="resource_read",
-                resource_or_tool="dispute-handling-manual://rules",
-                caller="resolution_draft_agent",
-                details={"length": len(str(data))},
-            )
-            return str(data)
-        except Exception as exc:
-            logger.error("Failed to read MCP resource dispute-handling-manual://rules: %s", exc)
-            from mcp_server.server import get_dispute_handling_manual
-            return get_dispute_handling_manual()
-
-    @classmethod
-    def call_transaction_lookup(cls, transaction_id: str) -> Dict[str, Any]:
-        """Synchronously invokes transaction_lookup MCP tool via adapter with persistent session."""
-        return _run_coroutine_sync(cls.acall_transaction_lookup(transaction_id))
-
-    @classmethod
-    async def acall_transaction_lookup(cls, transaction_id: str) -> Dict[str, Any]:
-        """Asynchronously invokes transaction_lookup MCP tool via langchain-mcp-adapters."""
-        start_time = time.time()
-        args = {"transaction_id": transaction_id}
-        try:
-            res = await _execute_mcp_tool("transaction_lookup", args)
-            status = "success"
-        except Exception as exc:
-            logger.error("MCP transaction_lookup via adapter failed: %s", exc)
-            res = {"error": str(exc), "transaction_id": transaction_id}
-            status = "error"
-
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-        tracer.record_span(
-            name="mcp.transaction_lookup",
-            span_kind="tool",
-            start_time=start_time,
-            end_time=time.time(),
-            inputs={"transaction_id": transaction_id},
-            outputs={"merchant": res.get("merchant_name"), "amount": res.get("amount")},
-            run_id="RUN-MCP",
-            step_id="step-mcp-transaction-lookup",
-        )
-        log_tool_call(
-            agent="intake_agent",
-            tool_name="mcp.transaction_lookup",
-            args={"transaction_id": transaction_id},
-            result={"merchant": res.get("merchant_name"), "amount": res.get("amount")},
-            latency_ms=latency_ms,
-            status=status,
-        )
-        log_mcp_event(
-            event_type="tool_call",
-            resource_or_tool="transaction_lookup",
-            caller="intake_agent",
-            details=res,
-        )
-        return res
-
-    @classmethod
-    def call_customer_profile(cls, customer_id: str) -> Dict[str, Any]:
-        """Synchronously invokes customer_profile MCP tool via adapter with persistent session."""
-        return _run_coroutine_sync(cls.acall_customer_profile(customer_id))
-
-    @classmethod
-    async def acall_customer_profile(cls, customer_id: str) -> Dict[str, Any]:
-        """Asynchronously invokes customer_profile MCP tool via langchain-mcp-adapters."""
-        start_time = time.time()
-        args = {"customer_id": customer_id}
-        try:
-            res = await _execute_mcp_tool("customer_profile", args)
-            status = "success"
-        except Exception as exc:
-            logger.error("MCP customer_profile via adapter failed: %s", exc)
-            res = {"error": str(exc), "customer_id": customer_id}
-            status = "error"
-
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-        tracer.record_span(
-            name="mcp.customer_profile",
-            span_kind="tool",
-            start_time=start_time,
-            end_time=time.time(),
-            inputs={"customer_id": customer_id},
-            outputs={"tier": res.get("customer_tier"), "risk": res.get("risk_segment")},
-            run_id="RUN-MCP",
-            step_id="step-mcp-customer-profile",
-        )
-        log_tool_call(
-            agent="intake_agent",
-            tool_name="mcp.customer_profile",
-            args={"customer_id": customer_id},
-            result={"tier": res.get("customer_tier"), "risk": res.get("risk_segment")},
-            latency_ms=latency_ms,
-            status=status,
-        )
-        log_mcp_event(
-            event_type="tool_call",
-            resource_or_tool="customer_profile",
-            caller="intake_agent",
-            details=res,
-        )
-        return res
-
-    @classmethod
-    def call_fraud_rules(cls, transaction_id: str, signals: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Synchronously invokes fraud_rules MCP tool via adapter with persistent session."""
-        return _run_coroutine_sync(cls.acall_fraud_rules(transaction_id, signals))
-
-    @classmethod
-    async def acall_fraud_rules(cls, transaction_id: str, signals: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Asynchronously invokes fraud_rules MCP tool via langchain-mcp-adapters."""
-        start_time = time.time()
-        args = {"transaction_id": transaction_id, "signals": signals or []}
-        try:
-            res = await _execute_mcp_tool("fraud_rules", args)
-            status = "success"
-        except Exception as exc:
-            logger.error("MCP fraud_rules via adapter failed: %s", exc)
-            res = {"error": str(exc), "transaction_id": transaction_id}
-            status = "error"
-
-        latency_ms = round((time.time() - start_time) * 1000, 2)
-        tracer.record_span(
-            name="mcp.fraud_rules",
-            span_kind="tool",
-            start_time=start_time,
-            end_time=time.time(),
-            inputs={"transaction_id": transaction_id},
-            outputs={"fraud_score": res.get("fraud_score"), "risk_level": res.get("risk_level")},
-            run_id="RUN-MCP",
-            step_id="step-mcp-fraud-rules",
-        )
-        log_tool_call(
-            agent="fraud_signal_agent",
-            tool_name="mcp.fraud_rules",
-            args={"transaction_id": transaction_id},
-            result={"fraud_score": res.get("fraud_score"), "risk_level": res.get("risk_level")},
-            latency_ms=latency_ms,
-            status=status,
-        )
-        log_mcp_event(
-            event_type="tool_call",
-            resource_or_tool="fraud_rules",
-            caller="fraud_signal_agent",
             details=res,
         )
         return res

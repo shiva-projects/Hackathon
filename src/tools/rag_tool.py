@@ -12,50 +12,46 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import numpy as np
-import threading
 from src.observability.unified_logger import log_tool_call
 from src.observability.tracing import tracer
 
 _EMBEDDING_MODEL = None
 _CHROMA_CLIENT = None
 _CHROMA_COLLECTIONS: Dict[str, Any] = {}
-_RAG_LOCK = threading.Lock()
 
 
 def _get_embedding_model():
     global _EMBEDDING_MODEL
-    with _RAG_LOCK:
-        if _EMBEDDING_MODEL is None:
-            try:
-                from sentence_transformers import SentenceTransformer
-                try:
-                    _EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
-                except Exception:
-                    _EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
-            except Exception as e:
-                print(f"Warning: could not load SentenceTransformer: {e}")
-                _EMBEDDING_MODEL = None
-        return _EMBEDDING_MODEL
-
-
-def _get_chroma_collection(collection_name: str = "dispute_rules"):
-    global _CHROMA_CLIENT, _CHROMA_COLLECTIONS
-    with _RAG_LOCK:
-        if collection_name in _CHROMA_COLLECTIONS:
-            return _CHROMA_COLLECTIONS[collection_name]
+    if _EMBEDDING_MODEL is None:
         try:
-            import chromadb
-            if _CHROMA_CLIENT is None:
-                _CHROMA_CLIENT = chromadb.Client()
-            coll = _CHROMA_CLIENT.get_or_create_collection(
-                name=collection_name,
-                metadata={"hnsw:space": "cosine"},
-            )
-            _CHROMA_COLLECTIONS[collection_name] = coll
-            return coll
+            from sentence_transformers import SentenceTransformer
+            try:
+                _EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+            except Exception:
+                _EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
         except Exception as e:
-            print(f"Warning: could not initialize ChromaDB: {e}")
-            return None
+            print(f"Warning: could not load SentenceTransformer: {e}")
+            _EMBEDDING_MODEL = None
+    return _EMBEDDING_MODEL
+
+
+def _get_chroma_collection(collection_name: str = "policy_corpus"):
+    global _CHROMA_CLIENT, _CHROMA_COLLECTIONS
+    if collection_name in _CHROMA_COLLECTIONS:
+        return _CHROMA_COLLECTIONS[collection_name]
+    try:
+        import chromadb
+        if _CHROMA_CLIENT is None:
+            _CHROMA_CLIENT = chromadb.Client()
+        coll = _CHROMA_CLIENT.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
+        _CHROMA_COLLECTIONS[collection_name] = coll
+        return coll
+    except Exception as e:
+        print(f"Warning: could not initialize ChromaDB: {e}")
+        return None
 
 
 def extract_rule_id(chunk_text: str) -> str:
@@ -229,127 +225,6 @@ async def aretrieve_policy_chunks(
         retrieve_policy_chunks,
         query=query,
         selected_policy=selected_policy,
-        manifest_path=manifest_path,
-        top_k=top_k,
-        run_id=run_id,
-    )
-
-
-def retrieve_dispute_rules(
-    query: str,
-    manifest_path: str = "data/dispute_rules/dispute_manifest.json",
-    top_k: int = 3,
-    run_id: str = "default_run",
-) -> List[Dict[str, Any]]:
-    """
-    Agentic-RAG retrieval over synthetic Dispute & Chargeback Rules corpus.
-    Uses dense vector similarity (all-MiniLM-L6-v2) + ChromaDB index.
-    Generates verifiable citations with source_file, chunk_id, rule_code, and SHA-256 text_hash.
-    """
-    start_time = time.time()
-    m_path = Path(manifest_path)
-    if not m_path.exists():
-        from scripts.build_dispute_manifest import build_dispute_manifest
-        manifest = build_dispute_manifest()
-    else:
-        with open(m_path, "r", encoding="utf-8") as f:
-            manifest = json.load(f)
-
-    chunks = list(manifest.get("chunks", {}).values())
-    if not chunks:
-        return []
-
-    model = _get_embedding_model()
-    chroma_coll = _get_chroma_collection("dispute_rules")
-
-    scored_chunks = []
-    if model is not None and chroma_coll is not None:
-        try:
-            if chroma_coll.count() == 0:
-                doc_texts = [c["text"] for c in chunks]
-                doc_ids = [c["chunk_id"] for c in chunks]
-                doc_metas = [{
-                    "rule_code": c.get("rule_code", "DISP-GEN"),
-                    "chunk_id": c["chunk_id"],
-                    "source_file": c["source_file"],
-                    "text_hash": c["text_hash"],
-                } for c in chunks]
-                embeddings = model.encode(doc_texts, convert_to_numpy=True).tolist()
-                chroma_coll.add(
-                    documents=doc_texts,
-                    embeddings=embeddings,
-                    metadatas=doc_metas,
-                    ids=doc_ids,
-                )
-
-            q_emb = model.encode([query], convert_to_numpy=True).tolist()
-            res = chroma_coll.query(
-                query_embeddings=q_emb,
-                n_results=min(top_k * 2, len(chunks)),
-            )
-
-            id_to_chunk = {c["chunk_id"]: c for c in chunks}
-            if res and "ids" in res and res["ids"]:
-                retrieved_ids = res["ids"][0]
-                distances = res["distances"][0] if "distances" in res and res["distances"] else [0.0] * len(retrieved_ids)
-                for cid, dist in zip(retrieved_ids, distances):
-                    if cid in id_to_chunk:
-                        chunk = id_to_chunk[cid]
-                        sim = float(max(0.0, 1.0 - dist))
-                        scored_chunks.append({**chunk, "score": sim})
-        except Exception as e:
-            print(f"Warning: Chroma vector retrieval error ({e}), using lexical fallback.")
-
-    if not scored_chunks:
-        # Lexical fallback
-        q_tokens = set(query.lower().split())
-        for c in chunks:
-            text_lower = c["text"].lower()
-            overlap = sum(1 for t in q_tokens if t in text_lower)
-            score = overlap / max(1, len(q_tokens))
-            scored_chunks.append({**c, "score": float(score)})
-
-    scored_chunks.sort(key=lambda x: x["score"], reverse=True)
-    results = scored_chunks[:top_k]
-
-    end_time = time.time()
-    latency_ms = round((end_time - start_time) * 1000.0, 2)
-
-    log_tool_call(
-        agent="resolution_draft_agent",
-        tool_name="retrieve_dispute_rules",
-        args={"query": query, "top_k": top_k},
-        result=[{"chunk_id": r["chunk_id"], "rule_code": r.get("rule_code"), "score": r["score"]} for r in results],
-        latency_ms=latency_ms,
-        status="success",
-        run_id=run_id,
-    )
-
-    tracer.record_span(
-        name="rag.retrieve_dispute_rules",
-        span_kind="tool",
-        start_time=start_time,
-        end_time=end_time,
-        inputs={"query": query, "top_k": top_k},
-        outputs={"chunks_found": len(results), "top_chunk_id": results[0]["chunk_id"] if results else None},
-        run_id=run_id,
-        step_id="step-dispute-rag-retrieval",
-    )
-
-    return results
-
-
-async def aretrieve_dispute_rules(
-    query: str,
-    manifest_path: str = "data/dispute_rules/dispute_manifest.json",
-    top_k: int = 3,
-    run_id: str = "default_run",
-) -> List[Dict[str, Any]]:
-    """Asynchronously executes dispute rule retrieval."""
-    import asyncio
-    return await asyncio.to_thread(
-        retrieve_dispute_rules,
-        query=query,
         manifest_path=manifest_path,
         top_k=top_k,
         run_id=run_id,

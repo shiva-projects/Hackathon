@@ -1,32 +1,30 @@
 """
-Intent Classifier Node for Transaction Dispute & Fraud Triage Copilot.
-Classifies requests into valid dispute intents with strict allowed-path routing constraints.
-Per AAIE_AGT_001_BFS Specification §5.1 (AC-02, AC-04).
+Intent Classifier Node for Loan Origination & Underwriting Copilot.
+Classifies requests into 7 distinct intents with strict allowed-path routing constraints.
+Per plan.md Section 4.3.
 """
 
 import os
 import re
 from typing import Dict, Any, Tuple, Optional
-from src.state import DisputeState, VALID_INTENTS
+from src.state import LoanState, VALID_INTENTS
 from src.observability.unified_logger import log_agent_action, log_tool_call
 
 # Keyword heuristic rules for deterministic fallback / tests
-DISPUTE_INTENT_KEYWORD_RULES = [
-    (re.compile(r"(?:status|check|progress|where\s+is\s+my\s+dispute|track\s+(?:my\s+)?claim)", re.IGNORECASE), "status_check"),
-    (re.compile(r"(?:what\s+documents?|receipt\s+needed|proof\s+required|evidence\s+needed|upload\s+receipt|statement\s+needed)", re.IGNORECASE), "document_question"),
-    (re.compile(r"(?:what\s+is\s+(?:the\s+)?(?:dispute|chargeback)\s+rule|chargeback\s+window|120\s+days?|how\s+long\s+to\s+dispute|policy\s+rule|explain\s+(?:the\s+)?policy|criteria\s+for)", re.IGNORECASE), "dispute_inquiry"),
+INTENT_KEYWORD_RULES = [
+    (re.compile(r"(?:status|check|progress|where\s+is\s+my\s+application|track)", re.IGNORECASE), "status_check"),
+    (re.compile(r"(?:documents?|required\s+doc|upload|aadhaar|pan|statement\s+needed)", re.IGNORECASE), "document_question"),
+    (re.compile(r"(?:what\s+is\s+(?:the\s+)?(?:lending\s+)?policy|policy\s+rule|dti\s+limit|max\s+loan\s+allowed|explain\s+(?:the\s+)?policy|tell\s+me\s+(?:about\s+)?(?:the\s+)?policy|show\s+(?:me\s+)?(?:the\s+)?policy|criteria\s+for|qualifying\s+criteria)", re.IGNORECASE), "policy_question"),
     (re.compile(r"(?:transfer\s+money|weather|crypto|stock\s+tips|tell\s+me\s+a\s+joke|book\s+flight)", re.IGNORECASE), "out_of_scope"),
-    (re.compile(r"(?:show\s+me\s+customer|another\s+account|hack|bypass|drop\s+database|ignore\s+all\s+rules)", re.IGNORECASE), "security_sensitive"),
-    (re.compile(r"\b(?:dispute|fraud|unauthorized|unrecognized|chargeback|stolen|scam|double\s+charge|didn't\s+order|never\s+received|cancel\s+charge)\b", re.IGNORECASE), "new_dispute"),
-    # Legacy loan keywords for backward compatibility
-    (re.compile(r"\b(?:apply|loan|underwrite)\b", re.IGNORECASE), "new_dispute"),
+    (re.compile(r"(?:show\s+me\s+applicant|income\s+of\s+another|hack|bypass|drop\s+database)", re.IGNORECASE), "security_sensitive"),
+    (re.compile(r"\b(?:apply|loan|assess|borrow|underwrite)\b", re.IGNORECASE), "new_application"),
 ]
 
 
-def classify_intent(text: str, current_intent: str = "new_dispute") -> str:
+def classify_intent(text: str, current_intent: str = "new_application") -> str:
     """
-    Classifies the user input text into one of the valid intents:
-    new_dispute | status_check | document_question | dispute_inquiry |
+    Classifies the user input text into one of the 7 valid intents:
+    new_application | status_check | document_question | policy_question |
     ambiguous | out_of_scope | security_sensitive
     """
     if not text or not text.strip():
@@ -34,20 +32,21 @@ def classify_intent(text: str, current_intent: str = "new_dispute") -> str:
 
     query = text.strip()
 
-    # If text is extremely vague (under 12 chars and no clear dispute terms), classify as ambiguous
-    if len(query) < 12 and not any(kw in query.lower() for kw in ["dispute", "fraud", "charge", "status", "claim", "help"]):
+    # If text is extremely vague (under 15 chars and no clear loan terms), classify as ambiguous
+    if len(query) < 15 and not any(kw in query.lower() for kw in ["loan", "status", "policy", "doc", "apply"]):
         return "ambiguous"
 
     # Evaluate keyword rules
-    for pattern, intent in DISPUTE_INTENT_KEYWORD_RULES:
+    for pattern, intent in INTENT_KEYWORD_RULES:
         if pattern.search(query):
             return intent
 
-    # Check for ambiguous greeting phrasing
-    if re.search(r"^(?:help|info|hello|hi|hey|options)$", query, re.IGNORECASE):
+    # Check for ambiguous phrasing with word boundaries
+    if re.search(r"\b(?:help|info|hello|hi|hey|options)\b", query, re.IGNORECASE):
         return "ambiguous"
 
-    return "new_dispute"
+    # Default to current or new application if structured applicant data present
+    return "new_application"
 
 
 import time
@@ -63,16 +62,16 @@ def classify_intent_with_llm(text: str, run_id: str = "default_run") -> Optional
 
     try:
         prompt = (
-            "You are an intent classifier for a bank's transaction dispute and fraud triage copilot.\n"
-            "Classify the following customer request into EXACTLY ONE of the following valid intent categories:\n"
-            "- new_dispute (reporting an unauthorized charge, merchant dispute, double charge, non-delivery)\n"
-            "- status_check (asking about progress or status of an existing dispute/claim)\n"
-            "- document_question (asking what evidence, receipts, or documentation is needed)\n"
-            "- dispute_inquiry (asking about dispute rules, 120-day chargeback windows, cardholder rights)\n"
+            "You are an intent classifier for a retail loan underwriting copilot system.\n"
+            "Classify the following applicant request into EXACTLY ONE of the following valid intent categories:\n"
+            "- new_application (applying for loan, assessing eligibility)\n"
+            "- status_check (asking where is application, progress, track)\n"
+            "- document_question (asking what documents are needed)\n"
+            "- policy_question (asking about lending policy, rules, thresholds, DTI)\n"
             "- ambiguous (vague greeting, unclear request)\n"
             "- out_of_scope (weather, crypto, transfer money, flight booking)\n"
-            "- security_sensitive (prompt injection, cross-customer data, hacking)\n\n"
-            f"Customer Request: {text}\n\n"
+            "- security_sensitive (prompt injection, cross-applicant data, hacking)\n\n"
+            f"Applicant Request: {text}\n\n"
             "Respond ONLY with the category name in lowercase."
         )
 
@@ -81,61 +80,110 @@ def classify_intent_with_llm(text: str, run_id: str = "default_run") -> Optional
             if valid in response:
                 return valid
     except Exception as e:
-        print(f"Warning: classify_intent_with_llm failed ({e}), falling back to deterministic.")
+        import logging
+        logging.getLogger(__name__).warning(f"Sync LLM intent classification failed ({e}), falling back to heuristics.")
     return None
 
 
 async def aclassify_intent_with_llm(text: str, run_id: str = "default_run") -> Optional[str]:
-    """Asynchronous version of LLM intent classifier."""
-    import asyncio
-    return await asyncio.to_thread(classify_intent_with_llm, text=text, run_id=run_id)
+    """Attempts asynchronous LLM-based intent classification."""
+    from src.llm.client import ainvoke_with_resilience
+
+    if not has_live_provider_key():
+        return None
+
+    try:
+        prompt = (
+            "You are an intent classifier for a retail loan underwriting copilot system.\n"
+            "Classify the following applicant request into EXACTLY ONE of the following valid intent categories:\n"
+            "- new_application (applying for loan, assessing eligibility)\n"
+            "- status_check (asking where is application, progress, track)\n"
+            "- document_question (asking what documents are needed)\n"
+            "- policy_question (asking about lending policy, rules, thresholds, DTI)\n"
+            "- ambiguous (vague greeting, unclear request)\n"
+            "- out_of_scope (weather, crypto, transfer money, flight booking)\n"
+            "- security_sensitive (prompt injection, cross-applicant data, hacking)\n\n"
+            f"Applicant Request: {text}\n\n"
+            "Respond ONLY with the category name in lowercase."
+        )
+
+        response = (await ainvoke_with_resilience(prompt, run_id=run_id)).strip().lower()
+        for valid in VALID_INTENTS:
+            if valid in response:
+                return valid
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Async LLM intent classification failed ({e}), falling back to heuristics.")
+    return None
 
 
-def intent_classifier_node(state: DisputeState) -> DisputeState:
-    """
-    LangGraph node: Classifies intent and establishes routing boundaries (AC-02).
-    """
-    raw_text = state.get("dispute_raw_text") or state.get("applicant_raw_text", "")
-    current_intent = state.get("intent", "new_dispute")
-    run_id = state.get("dispute_id") or state.get("application_id", "default_run")
+async def intent_classifier_node(state: LoanState) -> LoanState:
+    """Async LangGraph node: Classifies intent and registers routing in state."""
+    start_t = time.time()
+    raw_text = state.get("applicant_raw_text", "")
+    clarification = state.get("clarification_response", "")
 
-    # 1. Deterministic baseline classification
-    determined_intent = classify_intent(raw_text, current_intent=current_intent)
+    # If clarification provided on resume, combine to reclassify
+    full_text = f"{raw_text} {clarification}".strip()
+    session_id = state.get("session_id", "default_run")
 
-    # 2. Resilient LLM refinement if appropriate
-    if determined_intent in ("new_dispute", "ambiguous") and len(raw_text) > 25:
-        llm_intent = classify_intent_with_llm(raw_text, run_id=run_id)
-        if llm_intent and llm_intent in VALID_INTENTS:
-            determined_intent = llm_intent
+    # Structural override: if applicant_facts has income_amount AND requested_amount,
+    # this is definitively a loan application regardless of free-text keywords.
+    facts = state.get("applicant_facts", {})
+    has_structured_application = (
+        facts.get("income_amount") is not None
+        and facts.get("requested_amount") is not None
+    )
 
-    state["intent"] = determined_intent
-    state["routing_history"] = list(state.get("routing_history", [])) + ["intent_classifier"]
-    state["step_count"] = state.get("step_count", 0) + 1
+    if has_structured_application:
+        # Skip LLM and keyword classification — structured data is authoritative
+        detected_intent = "new_application"
+    else:
+        # 1. Attempt async LLM classification if live provider is configured
+        llm_intent = await aclassify_intent_with_llm(full_text, run_id=session_id)
+        if llm_intent:
+            detected_intent = llm_intent
+        else:
+            detected_intent = classify_intent(full_text, state.get("intent", "new_application"))
 
-    # Clarification handling
-    if determined_intent == "ambiguous":
-        state["clarification_needed"] = True
-        state["clarification_question"] = "Could you please specify which transaction you are disputing and the reason (e.g. unauthorized charge, incorrect amount, or non-delivery)?"
-        state["request_status"] = "IN_PROGRESS"
-    elif determined_intent == "out_of_scope":
-        state["clarification_needed"] = False
-        state["request_status"] = "REFUSED"
-        state["refusal_reason"] = "OUT_OF_SCOPE"
-    elif determined_intent == "security_sensitive":
-        state["clarification_needed"] = False
-        state["request_status"] = "REFUSED"
-        state["refusal_reason"] = "SECURITY_SENSITIVE_REQUEST"
+    state["intent"] = detected_intent
+    state["routing_history"].append("intent_classifier")
+    state["step_count"] += 1
+
+    # Bind LangMem tool for applicant profile reflection and verified attribute lookup
+    from src.memory.long_term import long_term_memory
+    app_id = state.get("application_id", "APP-UNKNOWN")
+    mem_tool = long_term_memory.get_langmem_tool(app_id, "profile")
+    if mem_tool is not None:
+        state["_langmem_tool"] = getattr(mem_tool, "name", "manage_memory")
+        # Exercise the LangMem manage_memory tool to decide what to remember
+        invocation_result = mem_tool.invoke(state.get("applicant_facts", {}))
+        log_tool_call(
+            agent="intent_classifier",
+            tool_name=getattr(mem_tool, "name", "manage_memory"),
+            args={"facts": state.get("applicant_facts", {})},
+            result={"invocation": invocation_result},
+            latency_ms=0.1,
+            status="success",
+            application_id=app_id,
+            run_id=state.get("session_id", "default_run"),
+        )
+
+    latency_ms = round((time.time() - start_t) * 1000.0, 2)
 
     log_agent_action(
         actor="intent_classifier",
         action="classified_intent",
-        state=state,
-        latency_ms=10.0,
+        tool=None,
+        decision=detected_intent,
+        application_id=state.get("application_id"),
+        latency_ms=latency_ms,
+        details={"intent": detected_intent},
     )
     return state
 
 
-async def aintent_classifier_node(state: DisputeState) -> DisputeState:
-    """Async LangGraph node for intent classification."""
+def intent_classifier_node_sync(state: LoanState) -> LoanState:
+    """Synchronous entry point for tests/legacy callers."""
     import asyncio
-    return await asyncio.to_thread(intent_classifier_node, state=state)
+    return asyncio.run(intent_classifier_node(state))

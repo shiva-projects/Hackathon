@@ -10,6 +10,8 @@ from src.policy.policy_selector import select_applicable_policy
 from src.tools.rag_tool import retrieve_policy_chunks, aretrieve_policy_chunks
 from mcp_server.client import MCPClient
 from src.observability.unified_logger import log_agent_action
+from src.context.select import select_agent_context
+from src.context.isolate import verify_context_isolation
 
 
 async def apolicy_agent_node(state: LoanState) -> LoanState:
@@ -20,8 +22,6 @@ async def apolicy_agent_node(state: LoanState) -> LoanState:
     start_t = time.time()
 
     # 0. Context engineering: Select and isolate agent context
-    from src.context.select import select_agent_context
-    from src.context.isolate import verify_context_isolation
     agent_ctx = select_agent_context("policy_agent", state)
     if not verify_context_isolation(agent_ctx):
         raise RuntimeError("Context isolation breach in policy_agent")
@@ -79,6 +79,13 @@ async def apolicy_agent_node(state: LoanState) -> LoanState:
         latency_ms=latency_ms,
         details={"policy_id": selected_policy["policy_id"], "version": selected_policy["version"]},
     )
+    if state.get("intent") == "policy_question":
+        state["request_status"] = "COMPLETED"
+        state["rationale"] = (
+            f"Policy {selected_policy.get('version')} retrieved. "
+            f"Found {len(citations)} relevant policy rules."
+        )
+
     return state
 
 

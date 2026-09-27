@@ -1,10 +1,10 @@
 # Grader Quick-Reference Guide (5-Minute Evaluation)
-**Business Case**: AAIE_AGT_001_BFS · **Domain**: Banking & Financial Services · **System**: Transaction Dispute & Fraud Triage Copilot
+**Business Case**: BC-AAIE-HACK-02 · **Domain**: Banking & Finance · **System**: Loan Origination & Underwriting Copilot
 
-Welcome, evaluator! This repository contains a fully working, observable, and governed LangGraph multi-agent copilot built specifically for **Transaction Dispute & Fraud Triage (`AAIE_AGT_001_BFS`)**. Every claim in this repository is backed by committed code and machine-generated artifacts under the **Evidence-in-Repo Rule**.
+Welcome, evaluator! This repository contains a fully working, observable, and governed LangGraph multi-agent copilot. Every claim in this repository is backed by committed code and machine-generated artifacts under the **Evidence-in-Repo Rule**.
 
 > **LLM Provider Transparency (v8 Addendum)**:  
-> Which model/provider actually produced a given run → [`reports/environment.json`](reports/environment.json), field `provider` (`gemini` primary per spec; `groq` configured for rate resilience). Detailed resolution logs are recorded in [`logs/agent_actions.jsonl`](logs/agent_actions.jsonl).
+> Which model/provider actually produced a given run → [`reports/environment.json`](reports/environment.json), field `provider` (`gemini` primary, `groq` fallback). Detailed resolution logs are recorded in [`logs/agent_actions.jsonl`](logs/agent_actions.jsonl).
 
 ---
 
@@ -13,61 +13,58 @@ Welcome, evaluator! This repository contains a fully working, observable, and go
 To verify the entire system end-to-end in under 2 minutes:
 
 ```bash
-# 1. Run dispute pipeline or test suite (Phoenix collector auto-launches in-process)
-pytest tests/test_dispute_agents.py tests/test_dispute_rag.py tests/test_reflection_loop.py tests/test_memory_eviction.py -v
+# 1. Run applications through the multi-agent copilot (Phoenix collector auto-launches in-process)
+python scripts/run_pipeline.py --application-dir data/sample_applications/
 
 # 2. Regenerate all evidence, traces, golden signals & dashboard
 python scripts/regenerate_evidence.py
 
-# 3. Verify all 12 Acceptance Criteria (AC-01..12) and 8 Non-Functional Requirements (NFR-01..08)
+# 3. Verify all AC-01..12 and NFR-01..06 criteria
 python scripts/verify_acceptance_criteria.py
 ```
 Expected final output: `RESULT: READY FOR SUBMISSION`.
 
-> **Key Architectural Features**:  
-> - **Supervisor Multi-Agent Pattern**: Supervisor routes dynamically to `intake_agent` (MCP customer/transaction lookups), `fraud_signal_agent` (MCP fraud rules & risk scoring), `chargeback_eligibility_agent` (120-day presentation window & reason code mapping), and `resolution_draft_agent` (Agentic-RAG rule retrieval & reflection loop).
-> - **Agentic-RAG with SHA-256 Digest Verification**: Rule lookups from `data/dispute_rules/` cross-verified against `data/dispute_rules/dispute_manifest.json` cryptographic hashes.
-> - **Self-Healing Reflection Loop (AC-12)**: Post-draft critique node validates citations, 120-day compliance, and reason code references with an evidenced OpenTelemetry span.
-> - **Memory Eviction Policy (AC-08)**: Long-term memory enforces TTL expiration and importance-weighted LRU eviction per namespace.
+> **Self-Contained Phoenix Collector & LangMem (NFR-02)**:  
+> - **Phoenix Auto-Launch**: `scripts/run_pipeline.py` and `scripts/regenerate_evidence.py` automatically detect and launch the Phoenix collector server on `http://localhost:6006` in-process if not already running. Spans are streamed via real OpenTelemetry exporter, exporting genuine 39-column OpenInference spans into `traces/phoenix_spans.parquet` (`trace_source: "phoenix"`). `reports/dashboard.png` is captured live directly from the active Phoenix UI.  
+> - **LangMem Integration**: Real LangMem `manage_memory` tool is bound to live agents (`src/agents/intent_classifier.py` and `src/agents/decision_agent.py`) backed by LangGraph's `InMemoryStore` with strict memory write policy gating.  
+> - **Presidio Analyzer**: Multi-layered PII detection using Presidio's `AnalyzerEngine` with spaCy `en_core_web_lg` model (upgraded from sm; higher NER recall for financial PII) combined with financial regex patterns.
 
 ---
 
-## 📋 Comprehensive Acceptance Criteria Mapping (AC-01 .. AC-12)
+## 📋 Comprehensive Acceptance Criteria Mapping
 
-| Criterion | Requirement Summary | Implementation File | Verification Test | Committed Evidence Artifact |
+| Criterion | Summary & Requirement | Implementation File | Verification Test | Committed Evidence Artifact |
 | :--- | :--- | :--- | :--- | :--- |
-| **AC-01** | Explicit typed state shared across nodes | [`src/state.py`](src/state.py) (`DisputeState`) | [`tests/test_dispute_agents.py`](tests/test_dispute_agents.py) | `src/state.py`<br>`assert_state_invariants()` |
-| **AC-02** | Supervisor routes to specialized workers | [`src/agents/supervisor.py`](src/agents/supervisor.py)<br>[`src/graph.py`](src/graph.py) | [`tests/test_dispute_agents.py`](tests/test_dispute_agents.py) | `logs/agent_actions.jsonl`<br>`traces/phoenix_spans.parquet` |
-| **AC-03** | Conditional edges route on state | [`src/agents/chargeback_eligibility_agent.py`](src/agents/chargeback_eligibility_agent.py)<br>[`src/agents/fraud_signal_agent.py`](src/agents/fraud_signal_agent.py) | [`tests/test_dispute_agents.py`](tests/test_dispute_agents.py) | `logs/agent_actions.jsonl`<br>`logs/human_reviews.jsonl` |
-| **AC-04** | Validated Pydantic models at handoffs | `IntakeOutput`, `FraudSignalOutput`, `ChargebackEligibilityOutput`, `ResolutionDraftOutput` | [`tests/test_dispute_agents.py`](tests/test_dispute_agents.py) | Pydantic schema validation |
-| **AC-05** | Checkpointer enables pause/resume | [`src/memory/checkpoint_config.py`](src/memory/checkpoint_config.py) (`SqliteSaver`) | [`tests/test_checkpoint_resume.py`](tests/test_checkpoint_resume.py) | `data/checkpoints.sqlite` |
-| **AC-06** | Tiered working + semantic memory | [`src/memory/short_term.py`](src/memory/short_term.py)<br>[`src/memory/long_term.py`](src/memory/long_term.py) | [`tests/test_memory_persistence.py`](tests/test_memory_persistence.py) | `data/long_term_memory.json` |
-| **AC-07** | Cross-session memory persistence | [`src/memory/long_term.py`](src/memory/long_term.py) | [`tests/test_memory_persistence.py`](tests/test_memory_persistence.py) | `logs/memory_test.log` |
-| **AC-08** | Memory eviction / importance policy | [`src/memory/long_term.py`](src/memory/long_term.py) (`evict_namespace`) | [`tests/test_memory_eviction.py`](tests/test_memory_eviction.py) | `tests/test_memory_eviction.py` |
-| **AC-09** | Custom MCP server (≥2 tools, 1 resource) | [`mcp_server/server.py`](mcp_server/server.py) | [`tests/test_mcp_integration.py`](tests/test_mcp_integration.py) | `logs/mcp_transcript.jsonl` |
-| **AC-10** | MCP consumed via langchain-mcp-adapters | [`mcp_server/client.py`](mcp_server/client.py) | [`tests/test_mcp_integration.py`](tests/test_mcp_integration.py) | `logs/mcp_transcript.jsonl`<br>`logs/tool_calls.jsonl` |
-| **AC-11** | Agentic-RAG dispute rule retrieval | [`src/tools/rag_tool.py`](src/tools/rag_tool.py) (`retrieve_dispute_rules`) | [`tests/test_dispute_rag.py`](tests/test_dispute_rag.py) | `data/dispute_rules/dispute_manifest.json` |
-| **AC-12** | Reflection / self-healing loop | [`src/agents/resolution_draft_agent.py`](src/agents/resolution_draft_agent.py) | [`tests/test_reflection_loop.py`](tests/test_reflection_loop.py) | `traces/phoenix_spans.parquet` (`reflection_critique_span`) |
+| **AC-01** | Policy retrieval & cited policy rule | [`src/policy/policy_selector.py`](src/policy/policy_selector.py)<br>[`src/tools/rag_tool.py`](src/tools/rag_tool.py) | [`tests/test_policy_citations.py`](tests/test_policy_citations.py) | `outputs/sample_results/APP-001.json`<br>`data/policy_corpus/PL_retail_personal_loan_v2.md` |
+| **AC-02** | Affordability (DTI / disposable income) | [`src/domain/calculations.py`](src/domain/calculations.py)<br>[`mcp_server/server.py`](mcp_server/server.py) | [`tests/test_domain_logic.py`](tests/test_domain_logic.py) | `outputs/sample_results/APP-002.json` |
+| **AC-03** | Recommendation & human review routing | [`src/domain/decisions.py`](src/domain/decisions.py)<br>[`src/state.py`](src/state.py) | [`tests/test_llm_cannot_override_rules.py`](tests/test_llm_cannot_override_rules.py) | `outputs/sample_results/APP-004.json`<br>`logs/human_reviews.jsonl` |
+| **AC-04** | Intent classification & escalation | [`src/agents/intent_classifier.py`](src/agents/intent_classifier.py)<br>[`src/agents/clarification.py`](src/agents/clarification.py) | [`tests/test_routing.py`](tests/test_routing.py) | `outputs/sample_results/ambiguous_case.json`<br>`logs/agent_actions.jsonl` |
+| **AC-05** | Tiered memory & cross-session recall | [`src/memory/short_term.py`](src/memory/short_term.py)<br>[`src/memory/long_term.py`](src/memory/long_term.py) | [`tests/test_memory_persistence.py`](tests/test_memory_persistence.py) | `logs/memory_test.log` |
+| **AC-06** | Prompt injection defense & PII masking | [`src/guardrails/input_guard.py`](src/guardrails/input_guard.py)<br>[`src/guardrails/output_guard.py`](src/guardrails/output_guard.py) | [`tests/test_prompt_injection.py`](tests/test_prompt_injection.py)<br>[`tests/test_output_pii_redaction.py`](tests/test_output_pii_redaction.py) | `outputs/sample_results/injection_case.json` |
+| **AC-07** | Machine-generated tool invocation log | [`src/observability/unified_logger.py`](src/observability/unified_logger.py) | [`tests/test_tool_log_schema.py`](tests/test_tool_log_schema.py) | `logs/tool_calls.jsonl` |
+| **AC-08** | Real failure mode analysis (≥3 cases) | [`scripts/reproduce_failure.py`](scripts/reproduce_failure.py) | Reproduction script verified | [`docs/failure-analysis.md`](docs/failure-analysis.md) |
+| **AC-09** | Phoenix golden signals & dashboard | [`scripts/generate_golden_signals.py`](scripts/generate_golden_signals.py) | Script derived from traces | `reports/golden_signals.json`<br>`reports/dashboard.png`<br>`reports/dashboard_data.csv` |
+| **AC-10** | Input/output guardrails & audit trail | [`src/observability/unified_logger.py`](src/observability/unified_logger.py) | [`tests/test_unified_log_consistency.py`](tests/test_unified_log_consistency.py) | `logs/agent_actions.jsonl`<br>`logs/unified_trace.jsonl` |
+| **AC-11** | Governance pack complete & cited | Documented in `docs/` | [`scripts/verify_evidence.py`](scripts/verify_evidence.py) | [`docs/risk-register.md`](docs/risk-register.md)<br>[`docs/model-card.md`](docs/model-card.md)<br>[`docs/compliance.md`](docs/compliance.md)<br>[`docs/output-risk.md`](docs/output-risk.md) |
+| **AC-12** | DeepEval report & agent unit tests | [`scripts/run_eval.py`](scripts/run_eval.py) | [`tests/test_routing.py`](tests/test_routing.py)<br>[`tests/test_loops.py`](tests/test_loops.py)<br>[`tests/test_tool_contracts.py`](tests/test_tool_contracts.py) | `reports/eval_report.json` |
 
 ---
 
-## 🔒 Non-Functional Requirements (NFR-01 .. NFR-08) Checklist
+## 🔒 Non-Functional Requirements (NFR) Checklist
 
 - **NFR-01 (Secrets Hygiene)**: [`.env.example`](.env.example) and [`.gitignore`](.gitignore) present; `.env` is gitignored; zero API keys or private tokens in repo or logs (verified via `scripts/verify_evidence.py`).
 - **NFR-02 (Two Documented Commands)**: `run_pipeline.py` executes pipeline; `regenerate_evidence.py` exports traces, runs eval, and verifies evidence.
-- **NFR-03 (Quarantine Untrusted Text)**: [`src/context/quarantine.py`](src/context/quarantine.py) encapsulates user complaint text into non-executable XML data tags.
-- **NFR-04 (Structured JSON Logs & Traces)**: Structured JSONL logs (`logs/tool_calls.jsonl`, `logs/agent_actions.jsonl`) and OpenTelemetry traces (`traces/phoenix_spans.parquet`) committed.
-- **NFR-05 (Synthetic Data & Masking)**: 100% synthetic financial data; Presidio Analyzer and regex sanitization active across all spans (`src/observability/span_sanitizer.py`).
-- **NFR-06 (Single-vs-Multi-Agent Rationale)**: Formal architectural trade-off documented in [`docs/business-case.md`](docs/business-case.md) §4.1.
-- **NFR-07 (Graceful Degradation)**: Bounded retries (`src/resilience/retry.py`), typed timeouts (`src/resilience/timeout.py`), and graceful fallbacks (`src/resilience/fallback.py`).
-- **NFR-08 (Context Management & Compression)**: Proposition distillation middleware ([`src/context/compress.py`](src/context/compress.py)) compresses conversation context >= 50%.
+- **NFR-03 (Quarantine Untrusted Text)**: [`src/context/quarantine.py`](src/context/quarantine.py) encapsulates user input into non-executable XML data tags.
+- **NFR-04 (Async & Graceful Degradation)**: [`src/resilience/timeout.py`](src/resilience/timeout.py) and [`src/resilience/fallback.py`](src/resilience/fallback.py) ensure tool and model failures degrade gracefully to `UNABLE_TO_COMPLETE`.
+- **NFR-05 (Synthetic Data & Masking)**: 100% synthetic data; zero plaintext national IDs or account numbers in logs or traces.
+- **NFR-06 (Machine-Generated Evidence)**: Traces, golden signals, eval reports, and logs produced by committed Python scripts.
 
 ---
 
-## 🌟 Extra Credit & Bonus Deliverables
+## 🌟 Extra Credit & Bonus Deliverables (Section 7.7 & 8.1 of qn.txt)
 
 | Deliverable | Implementation | Verification Command | Committed Evidence |
 | :--- | :--- | :--- | :--- |
 | **FastAPI Streaming Server** | [`src/api/server.py`](src/api/server.py) (Async SSE events for agent node transitions) | `pytest tests/test_api.py -v` | [`logs/api_stream_demo.log`](logs/api_stream_demo.log) |
 | **Streaming Runner Demo** | [`scripts/demo_api_stream.py`](scripts/demo_api_stream.py) | `python scripts/demo_api_stream.py` | Recorded 9 SSE frame transitions |
-| **Business Case & Governance Pack** | [`docs/business-case.md`](docs/business-case.md), [`docs/risk-register.md`](docs/risk-register.md), [`docs/model-card.md`](docs/model-card.md) | `python scripts/verify_evidence.py` | 100% verified documentation suite |
+

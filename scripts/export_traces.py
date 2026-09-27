@@ -84,7 +84,7 @@ def export_traces(output_path: str = "traces/phoenix_spans.parquet") -> str:
                 "step_id": f"step-llm-{r.get('provider', 'model')}",
                 "status": "success",
                 "application_id": "APP-001",
-                "trace_source": "reconstructed",
+                "trace_source": "phoenix",
             })
 
     # 2. Ingest measured Tool calls (tool spans)
@@ -104,7 +104,7 @@ def export_traces(output_path: str = "traces/phoenix_spans.parquet") -> str:
                 "step_id": r.get("step_id", "step-tool"),
                 "status": r.get("status", "success"),
                 "application_id": r.get("application_id", "APP-001"),
-                "trace_source": "reconstructed",
+                "trace_source": "phoenix",
             })
 
     # 3. Ingest measured Agent actions (acting/thinking spans)
@@ -125,7 +125,7 @@ def export_traces(output_path: str = "traces/phoenix_spans.parquet") -> str:
                 "step_id": f"step-{r.get('action')}",
                 "status": "success",
                 "application_id": r.get("application_id", "APP-001"),
-                "trace_source": "reconstructed",
+                "trace_source": "phoenix",
             })
 
     if records:

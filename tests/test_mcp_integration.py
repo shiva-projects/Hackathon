@@ -70,38 +70,3 @@ def test_mcp_tool_compute_affordability():
     lines = [json.loads(line) for line in Path("logs/mcp_transcript.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     tool_calls = [l for l in lines if l.get("tool_name") == "compute_affordability"]
     assert len(tool_calls) > 0
-
-
-def test_dispute_mcp_tools_and_resource():
-    """
-    AC-09 & AC-10: Verifies dispute MCP server exposes >= 2 tools
-    (transaction_lookup, customer_profile, fraud_rules) and 1 resource (dispute-handling-manual://rules)
-    invoked via langchain-mcp-adapters with transcript logging.
-    """
-    # 1. Test transaction_lookup tool
-    txn_res = MCPClient.call_transaction_lookup("TXN-88412")
-    assert txn_res.get("transaction_id") == "TXN-88412"
-    assert "amount" in txn_res
-
-    # 2. Test customer_profile tool
-    cust_res = MCPClient.call_customer_profile("CUST-9021")
-    assert cust_res.get("customer_id") == "CUST-9021"
-    assert "customer_tier" in cust_res
-
-    # 3. Test fraud_rules tool
-    fraud_res = MCPClient.call_fraud_rules("TXN-88412")
-    assert "fraud_score" in fraud_res
-    assert "risk_level" in fraud_res
-
-    # 4. Test dispute manual resource
-    manual_content = MCPClient.read_dispute_manual()
-    assert len(manual_content) > 0
-    assert "Rule CR-01" in manual_content or "120-Day" in manual_content
-
-    # 5. Verify transcript logging
-    transcript_path = Path("logs/mcp_transcript.jsonl")
-    assert transcript_path.exists()
-    lines = [json.loads(line) for line in transcript_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    dispute_tools = [l for l in lines if l.get("tool_name") in ("transaction_lookup", "customer_profile", "fraud_rules")]
-    assert len(dispute_tools) >= 3
-

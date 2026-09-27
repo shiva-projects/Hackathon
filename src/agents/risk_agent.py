@@ -10,6 +10,9 @@ from src.state import LoanState
 from src.domain.models import AffordabilityResult
 from src.domain.rules import evaluate_policy_rules
 from src.observability.unified_logger import log_agent_action
+from src.context.select import select_agent_context
+from src.context.isolate import verify_context_isolation
+from src.context.write import write_verified_fact
 
 
 async def arisk_agent_node(state: LoanState) -> LoanState:
@@ -19,9 +22,6 @@ async def arisk_agent_node(state: LoanState) -> LoanState:
     start_t = time.time()
 
     # 0. Context engineering: Select and isolate agent context
-    from src.context.select import select_agent_context
-    from src.context.isolate import verify_context_isolation
-    from src.context.write import write_verified_fact
     agent_ctx = select_agent_context("risk_agent", state)
     if not verify_context_isolation(agent_ctx):
         raise RuntimeError("Context isolation breach in risk_agent")

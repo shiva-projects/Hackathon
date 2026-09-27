@@ -17,6 +17,9 @@ from src.observability.unified_logger import log_agent_action, log_tool_call
 
 from src.llm.client import get_llm_client, invoke_with_resilience, ainvoke_with_resilience
 from src.llm.provider_resolver import has_live_provider_key
+from src.context.select import select_agent_context
+from src.context.isolate import verify_context_isolation
+from src.context.compress import compress_interaction_history
 
 
 def generate_llm_rationale(
@@ -91,9 +94,6 @@ async def adecision_agent_node(state: LoanState) -> LoanState:
     start_t = time.time()
 
     # 0. Context engineering: Select and isolate agent context
-    from src.context.select import select_agent_context
-    from src.context.isolate import verify_context_isolation
-    from src.context.compress import compress_interaction_history
     agent_ctx = select_agent_context("rationale_agent", state)
     if not verify_context_isolation(agent_ctx):
         raise RuntimeError("Context isolation breach in rationale_agent")

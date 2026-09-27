@@ -5,23 +5,25 @@ Asserts that step_count threshold stops runaway loops gracefully without unhandl
 
 import pytest
 from src.state import create_initial_state
-from src.graph import build_loan_copilot_graph, route_after_intent
-from src.memory.checkpoint_config import get_session_config
-from langgraph.checkpoint.sqlite import SqliteSaver
+from src.graph import build_loan_copilot_graph, route_after_intent, loop_guard_terminal_node
 
 
 def test_step_count_loop_guard_halts_runaway():
     state = create_initial_state("APP-001")
-    # Simulate runaway loop at recursion limit
+    # Simulate runaway loop at recursion limit (15 steps)
     state["step_count"] = 15
     state["intent"] = "new_application"
 
     next_node = route_after_intent(state)
 
-    # Route after intent must detect limit and return END
-    assert next_node == "__end__"
+    # Pure routing function must direct to dedicated terminal node
+    assert next_node == "loop_guard_terminal"
+    # Terminal node executes state mutations cleanly
+    import asyncio
+    asyncio.run(loop_guard_terminal_node(state))
     assert state["decision_status"] == "UNABLE_TO_COMPLETE"
     assert state["unable_reason"] == "RECURSION_LIMIT_EXCEEDED"
+    assert state["human_review_required"] is True
 
 
 def test_step_count_below_boundary_continues():
@@ -45,7 +47,9 @@ def test_step_count_above_boundary_terminates():
 
     next_node = route_after_intent(state)
 
-    assert next_node == "__end__"
+    assert next_node == "loop_guard_terminal"
+    import asyncio
+    asyncio.run(loop_guard_terminal_node(state))
     assert state["decision_status"] == "UNABLE_TO_COMPLETE"
     assert state["unable_reason"] == "RECURSION_LIMIT_EXCEEDED"
 
@@ -64,3 +68,25 @@ def test_clarification_reset_preserves_turn2_budget():
 
     assert state["step_count"] == 0
     assert not state["clarification_needed"]
+
+
+@pytest.mark.asyncio
+async def test_compiled_graph_loop_guard_execution():
+    """Validates that a compiled graph hitting recursion limit cleanly reaches loop_guard_terminal."""
+    from langgraph.checkpoint.memory import MemorySaver
+    from src.state import create_initial_state
+
+    checkpointer = MemorySaver()
+    app = build_loan_copilot_graph(checkpointer=checkpointer)
+
+    initial_state = create_initial_state("APP-001", applicant_raw_text="Apply for loan", actor_id="APPLICANT-001")
+    initial_state["step_count"] = 15
+    initial_state["intent"] = "new_application"
+
+    config = {"configurable": {"thread_id": "thread-loop-test"}}
+    final_state = await app.ainvoke(initial_state, config=config)
+
+    assert final_state["decision_status"] == "UNABLE_TO_COMPLETE"
+    assert final_state["unable_reason"] == "RECURSION_LIMIT_EXCEEDED"
+    assert final_state["human_review_required"] is True
+    assert "loop_guard_terminal" in final_state["routing_history"]

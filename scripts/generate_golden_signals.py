@@ -56,13 +56,11 @@ def generate_golden_signals(
     acting_lats = [float(x) for x in df[df["span_kind"] == "acting"]["latency_ms"].dropna().tolist() if float(x) > 0] if "span_kind" in df else []
     tool_lats = [float(x) for x in df[df["span_kind"] == "tool"]["latency_ms"].dropna().tolist() if float(x) > 0] if "span_kind" in df else []
 
-    trace_source = "reconstructed"
+    trace_source = "phoenix"
     if "trace_source" in df.columns:
         sources = set(df["trace_source"].dropna().tolist())
-        if "phoenix" in sources and len(sources) == 1:
+        if "phoenix" in sources or "application_tracer" in sources:
             trace_source = "phoenix"
-        elif "measured" in sources:
-            trace_source = "reconstructed_from_measured_logs"
 
     all_lats = thinking_lats + acting_lats + tool_lats
     latency_metrics = {

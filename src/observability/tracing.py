@@ -73,7 +73,9 @@ def ensure_phoenix_server_running(port: int = 6006) -> bool:
             from fastmcp.tools.function_tool import FunctionTool
             _orig_init = FunctionTool.__init__
             def _patched_init(self, *args, **kwargs):
-                if "data" in kwargs and isinstance(kwargs["data"], dict) and "annotations" in kwargs["data"]:
+                if "annotations" in kwargs and hasattr(kwargs["annotations"], "model_dump"):
+                    kwargs["annotations"] = kwargs["annotations"].model_dump()
+                elif "data" in kwargs and isinstance(kwargs["data"], dict) and "annotations" in kwargs["data"]:
                     ann = kwargs["data"]["annotations"]
                     if hasattr(ann, "model_dump"):
                         kwargs["data"]["annotations"] = ann.model_dump()

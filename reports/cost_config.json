@@ -9,7 +9,8 @@
       "pricing_checked_at": "2026-09-26"
     },
     "groq": {
-      "model": "openai/gpt-oss-20b",
+      "model": "openai/gpt-oss-120b",
+      "fallback_model": "openai/gpt-oss-20b",
       "input_price_per_million": 0.29,
       "output_price_per_million": 0.59,
       "currency": "USD",

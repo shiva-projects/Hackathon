@@ -162,22 +162,43 @@ def test_request_scoped_provider_isolation():
 def test_evidence_provider_consistency():
     """
     Verifies that generated evidence files exist and do not contradict each other
-    regarding the resolved provider.
+    regarding the resolved provider and primary model.
     """
     env_p = Path("reports/environment.json")
     signals_p = Path("reports/golden_signals.json")
     latest_p = Path("reports/latest_run.json")
+    cost_p = Path("reports/cost_config.json")
+    eval_p = Path("reports/eval_report.json")
 
-    if env_p.exists() and signals_p.exists() and latest_p.exists():
-        env_data = json.loads(env_p.read_text(encoding="utf-8"))
-        signals_data = json.loads(signals_p.read_text(encoding="utf-8"))
-        latest_data = json.loads(latest_p.read_text(encoding="utf-8"))
+    assert env_p.exists() and signals_p.exists() and latest_p.exists(), "Required report JSONs must exist."
 
-        env_prov = env_data.get("provider")
-        signals_prov = signals_data.get("provider")
-        latest_prov = latest_data.get("provider")
+    env_data = json.loads(env_p.read_text(encoding="utf-8"))
+    signals_data = json.loads(signals_p.read_text(encoding="utf-8"))
+    latest_data = json.loads(latest_p.read_text(encoding="utf-8"))
 
-        # Provider must be consistent across environment, signals, and latest run
-        assert env_prov == latest_prov, f"Mismatch: environment has {env_prov}, latest_run has {latest_prov}"
-        if signals_prov:
-            assert env_prov == signals_prov, f"Mismatch: environment has {env_prov}, signals has {signals_prov}"
+    env_prov = env_data.get("provider")
+    signals_prov = signals_data.get("provider")
+    latest_prov = latest_data.get("provider")
+
+    # Provider must be consistent across environment, signals, and latest run
+    assert env_prov == latest_prov, f"Mismatch: environment has {env_prov}, latest_run has {latest_prov}"
+    assert env_prov == signals_prov, f"Mismatch: environment has {env_prov}, signals has {signals_prov}"
+
+    # Model must be consistent across environment, signals, and latest run
+    env_model = env_data.get("model")
+    signals_model = signals_data.get("model")
+    latest_model = latest_data.get("model")
+
+    assert env_model == latest_model, f"Mismatch: environment has {env_model}, latest_run has {latest_model}"
+    assert env_model == signals_model, f"Mismatch: environment has {env_model}, signals has {signals_model}"
+
+    if cost_p.exists():
+        cost_data = json.loads(cost_p.read_text(encoding="utf-8"))
+        if "providers" in cost_data and env_prov in cost_data["providers"]:
+            cost_model = cost_data["providers"][env_prov].get("model")
+            assert cost_model == env_model, f"Cost config model mismatch: {cost_model} vs {env_model}"
+
+    if eval_p.exists():
+        eval_data = json.loads(eval_p.read_text(encoding="utf-8"))
+        judge_str = eval_data.get("metrics", {}).get("deepeval_method", "")
+        assert env_model in judge_str, f"Eval report judge model mismatch: expected {env_model} in {judge_str}"

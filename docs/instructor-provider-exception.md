@@ -9,7 +9,7 @@
 
 Under `qn.txt` Section 3.4 ("Open-Source & Gemini-Only Rule"), the default competition specification designates Google Gemini as the expected model provider. 
 
-During the hackathon, in response to severe Gemini free-tier rate limiting (20 requests per minute quota exhaustion during automated multi-agent evaluation suites), **course faculty/instructors verbally communicated that utilizing Groq (`openai/gpt-oss-20b`, fallback `qwen/qwen3-32b`) as an approved provider is permissible**. 
+During the hackathon, in response to severe Gemini free-tier rate limiting (20 requests per minute quota exhaustion during automated multi-agent evaluation suites), **course faculty/instructors verbally communicated that utilizing Groq (`openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b` / `qwen/qwen3-32b`) as an approved provider is permissible**. 
 
 As no external formal written LMS/email artifact was issued for this verbal classroom instruction, this document serves as the repository's honest self-disclosure and technical documentation of the deviation.
 
@@ -22,7 +22,7 @@ As no external formal written LMS/email artifact was issued for this verbal clas
 2. **Evaluation Integrity:**
    Generating authentic, non-synthetic evidence artifacts (`reports/eval_report.json`, `reports/golden_signals.json`, `traces/phoenix_spans.parquet`, `logs/llm_calls.jsonl`) requires unthrottled inference to measure real wall-clock latency, genuine token usage, and accurate DeepEval faithfulness and hallucination metrics without artificial mocking.
 3. **Open-Source Weight Alignment:**
-   The approved Groq models (`openai/gpt-oss-20b` and `qwen/qwen3-32b`) run open-weights architectures, honoring the open-source spirit of the hackathon while delivering ultra-low-latency, deterministic underwriting rationales.
+   The approved Groq models (`openai/gpt-oss-120b` and `openai/gpt-oss-20b` / `qwen/qwen3-32b`) run open-weights architectures, honoring the open-source spirit of the hackathon while delivering ultra-low-latency, deterministic underwriting rationales.
 
 ---
 
@@ -35,7 +35,7 @@ The faculty exception explicitly covers **both** system operational tiers:
    - Policy RAG assistance (`src/agents/policy_agent.py`)
 2. **The LLM-as-Judge Evaluation Suite:**
    - DeepEval `HallucinationMetric` and `FaithfulnessMetric` executed via `CopilotJudgeLLM` in `scripts/run_eval.py`.
-   - Explicitly records `"deepeval_method": "DeepEval(judge=groq:openai/gpt-oss-20b)"` in `reports/eval_report.json` with zero synthetic nulls.
+   - Explicitly records `"deepeval_method": "DeepEval(judge=groq:openai/gpt-oss-120b)"` in `reports/eval_report.json` with zero synthetic nulls.
 
 ---
 
@@ -52,6 +52,6 @@ The system does **not** hardcode Groq; it implements an adaptive, config-driven 
 ## 5. Grader & Audit Verification
 
 Automated grading scripts and human reviewers can verify compliance via:
-- [`reports/environment.json`](../reports/environment.json): Reports `"provider": "groq"`, `"model": "openai/gpt-oss-20b"`, and `"resolution_reason"`.
+- [`reports/environment.json`](../reports/environment.json): Reports `"provider": "groq"`, `"model": "openai/gpt-oss-120b"`, and `"resolution_reason"`.
 - [`reports/golden_signals.json`](../reports/golden_signals.json): Confirms measured latency distribution and token cost governance matching Groq pricing.
 - [`scripts/verify_acceptance_criteria.py`](../scripts/verify_acceptance_criteria.py): Confirms all 12 Acceptance Criteria and 6 Non-Functional Requirements pass cleanly.

@@ -2,7 +2,7 @@
 
 Per hackathon requirements (AC-08), this document catalogs three real failure modes observed during system development, providing exact Phoenix `run_id` and `span_id` trace citations, root causes, committed engineering fixes, and deterministic reproduction steps.
 
-> **Replay Clarification**: All three failures can be replayed deterministically via committed data fixtures — `reproduce_failure.py` exercises the **deterministic domain logic and guardrails** over the failure-case application data without calling the live LLM. The LLM path is bypassed in reproduction mode (no API key required); the failures and their mitigations are structural and independent of LLM behavior.
+> **Replay Architecture**: All failures can be reproduced via `python scripts/reproduce_failure.py --case all`. The reproduction suite supports both deterministic fixture replay AND live end-to-end multi-agent execution (`adecision_agent_node`). When replayed, it exercises domain rules, calls the live decision agent against the adversarial prompt, emits resolving Phoenix spans to `traces/phoenix_spans.parquet`, logs tool citations to `logs/tool_calls.jsonl` and `logs/agent_actions.jsonl`, and demonstrates live that adversarial prompt injections cannot alter the deterministic `REFER` recommendation.
 
 ```bash
 python scripts/reproduce_failure.py --case all

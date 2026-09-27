@@ -6,9 +6,9 @@
 
 ## 📢 Provider Exception (Documented Deviation from qn.txt §3.4)
 
-> **Faculty/Instructor Authorization**: Per direct instructor guidance (September 2026), this submission uses **Groq** (`openai/gpt-oss-20b`, fallback `qwen/qwen3-32b`) as the primary LLM provider in place of Google Gemini.
+> **Faculty/Instructor Authorization**: Per direct instructor guidance (September 2026), this submission uses **Groq** (`openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b` / `qwen/qwen3-32b`) as the primary LLM provider in place of Google Gemini.
 > 
-> **Rationale**: Google Gemini's public free-tier imposes severe rate constraints (20 requests/minute tier cap), causing spurious `429 Quota Exceeded` errors during full evidence regeneration and automated evaluation suites (12 benchmark test cases + DeepEval metrics). The faculty exception explicitly approves Groq for both the multi-agent runtime pipeline and the **DeepEval LLM-as-judge evaluation** (`groq:openai/gpt-oss-20b`), ensuring unthrottled, genuine evaluation.
+> **Rationale**: Google Gemini's public free-tier imposes severe rate constraints (20 requests/minute tier cap), causing spurious `429 Quota Exceeded` errors during full evidence regeneration and automated evaluation suites (12 benchmark test cases + DeepEval metrics). The faculty exception explicitly approves Groq for both the multi-agent runtime pipeline and the **DeepEval LLM-as-judge evaluation** (`groq:openai/gpt-oss-120b`), ensuring unthrottled, genuine evaluation.
 > 
 > **Dual-Provider Architecture**: The system retains dual-provider resolution: if `GEMINI_API_KEY` is present, it uses Gemini; otherwise, it resolves seamlessly to Groq. Detailed authorization: [`docs/instructor-provider-exception.md`](docs/instructor-provider-exception.md).
 

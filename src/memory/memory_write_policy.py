@@ -16,6 +16,13 @@ APPROVED_LONG_TERM_KEYS = {
     "verified_identity",
     "previous_tenure_months",
     "account_tenure_years",
+    # Dispute & Customer Profile memory attributes (AC-06, AC-08)
+    "dispute_history_count",
+    "preferred_channel",
+    "customer_tier",
+    "home_city",
+    "primary_bank",
+    "card_last4_primary",
 }
 
 

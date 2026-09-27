@@ -69,3 +69,17 @@ def test_negative_adversarial_memory_rejection(clean_memory_store):
     log_path = Path("logs/memory_test.log")
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"[{datetime.now(timezone.utc).isoformat()}] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.\n")
+
+
+def test_langmem_integration(clean_memory_store):
+    """Asserts LangMem tool binding and LangGraph BaseStore namespace storage."""
+    assert clean_memory_store.has_langmem is True
+    tool = clean_memory_store.get_langmem_tool("APP-001", "profile")
+    assert tool is not None
+    assert tool.name == "manage_memory"
+
+    # Store a verified fact and assert LangGraph BaseStore reflects it
+    clean_memory_store.write_fact("APP-001", "profile", "employment", "salaried")
+    item = clean_memory_store.langgraph_store.get(("APP-001", "profile"), "employment")
+    assert item is not None
+    assert item.value == {"fact": "salaried"}

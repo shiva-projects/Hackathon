@@ -30,3 +30,13 @@ def test_output_redacts_multiple_income_representations():
         sanitized = screen_output(text, ai_recommendation="REFER", seeded_pii_literals=representations)
         assert rep not in sanitized
         assert "[REDACTED_PII]" in sanitized
+
+
+def test_presidio_pii_analyzer():
+    """Asserts Microsoft Presidio detects international identities like UK NHS / SSN numbers."""
+    from src.observability.span_sanitizer import _presidio_analyzer, sanitize_text
+    assert _presidio_analyzer is not None
+    text = "Applicant NHS number is 943 476 5919 for identity verification."
+    sanitized = sanitize_text(text)
+    assert "943 476 5919" not in sanitized
+    assert "REDACTED" in sanitized

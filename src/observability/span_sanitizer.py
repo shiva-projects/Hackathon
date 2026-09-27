@@ -29,16 +29,53 @@ SENSITIVE_KEYS = {
 }
 
 
+# Presidio PII Analyzer integration (Microsoft Presidio)
+_presidio_analyzer = None
+try:
+    from presidio_analyzer import AnalyzerEngine
+    from presidio_analyzer.nlp_engine import NlpEngineProvider
+    _provider = NlpEngineProvider(nlp_configuration={
+        "nlp_engine_name": "spacy",
+        "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}],
+    })
+    _presidio_analyzer = AnalyzerEngine(nlp_engine=_provider.create_engine())
+except Exception:
+    _presidio_analyzer = None
+
+
 def sanitize_text(text: str) -> str:
-    """Redacts PII patterns from raw string text."""
+    """Redacts PII patterns from raw string text using domain rules + Microsoft Presidio."""
     if not isinstance(text, str):
         return str(text)
 
     sanitized = text
-    sanitized = EMAIL_PATTERN.sub("[REDACTED_EMAIL]", sanitized)
-    sanitized = PHONE_PATTERN.sub("[REDACTED_PHONE]", sanitized)
+
+    # Layer 1: Financial domain specific account, credit, email, and phone patterns
     sanitized = ACCOUNT_PATTERN.sub("[REDACTED_ACCOUNT]", sanitized)
     sanitized = CREDIT_ID_PATTERN.sub("[REDACTED_CREDIT_ID]", sanitized)
+    sanitized = EMAIL_PATTERN.sub("[REDACTED_EMAIL]", sanitized)
+    sanitized = PHONE_PATTERN.sub("[REDACTED_PHONE]", sanitized)
+
+    # Layer 2: Microsoft Presidio Named Entity & PII Analyzer (catches generic SSN, NHS, IBAN, etc.)
+    if _presidio_analyzer is not None and len(sanitized) >= 7 and ("@" in sanitized or any(c.isdigit() for c in sanitized)):
+        try:
+            results = _presidio_analyzer.analyze(
+                text=sanitized,
+                entities=["EMAIL_ADDRESS", "PHONE_NUMBER", "US_SSN", "UK_NHS", "CREDIT_CARD", "IBAN_CODE"],
+                language="en",
+            )
+            for r in sorted(results, key=lambda x: x.start, reverse=True):
+                if r.entity_type == "EMAIL_ADDRESS":
+                    rep = "[REDACTED_EMAIL]"
+                elif r.entity_type == "PHONE_NUMBER":
+                    rep = "[REDACTED_PHONE]"
+                elif r.entity_type in ("CREDIT_CARD", "IBAN_CODE"):
+                    rep = "[REDACTED_ACCOUNT]"
+                else:
+                    rep = f"[REDACTED_{r.entity_type}]"
+                sanitized = sanitized[:r.start] + rep + sanitized[r.end:]
+        except Exception:
+            pass
 
     return sanitized
 

@@ -11,23 +11,31 @@ Interactive dashboard allowing users to:
 import sys
 import os
 import json
+import time
 from pathlib import Path
 from decimal import Decimal
 from datetime import datetime, timezone
 import streamlit as st
+
+# Must be the very first Streamlit command
+st.set_page_config(
+    page_title="Loan Copilot | Underwriting Dashboard",
+    page_icon="🏦",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 # Ensure project root is in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import time
-from scripts.run_pipeline import run_single_application
-from src.graph import build_loan_copilot_graph
-from src.state import create_initial_state, assert_state_invariants
-from src.memory.checkpoint_config import get_session_config
-from src.observability.unified_logger import log_human_review, log_event
-from src.guardrails.output_guard import sanitize_review_reason
+
+@st.cache_resource(show_spinner="Compiling multi-agent graph...")
+def get_compiled_graph():
+    from src.graph import build_loan_copilot_graph
+    return build_loan_copilot_graph()
+
 
 NODE_METADATA = {
     "input_guard": ("1. Input Guard", "Screening applicant free-text for prompt injection & quarantining raw input"),
@@ -80,25 +88,20 @@ def render_pipeline_dot(current_node=None, completed_nodes=None, refused=False):
     return "\n".join(dot)
 
 
-st.set_page_config(
-    page_title="Loan Copilot | Underwriting Dashboard",
-    page_icon="🏦",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# Custom CSS for polished aesthetic
+# Custom CSS with high-contrast Dark & Light Mode aesthetics
 st.markdown("""
 <style>
     .main-header {
         font-size: 2.2rem;
-        font-weight: 700;
-        color: #1E293B;
+        font-weight: 800;
+        background: linear-gradient(90deg, #38BDF8, #818CF8, #C084FC);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         margin-bottom: 0.2rem;
     }
     .sub-header {
         font-size: 1.05rem;
-        color: #64748B;
+        color: #94A3B8;
         margin-bottom: 1.5rem;
     }
     .badge-approve {
@@ -142,8 +145,8 @@ st.markdown("""
         border: 1px solid #CBD5E1;
     }
     .metric-card {
-        background-color: #F8FAFC;
-        border: 1px solid #E2E8F0;
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 8px;
         padding: 14px;
         margin-bottom: 10px;
@@ -158,8 +161,7 @@ SAMPLE_FILES = sorted(list(SAMPLE_APPS_DIR.glob("*.json")))
 SAMPLE_APP_NAMES = {f.stem: f for f in SAMPLE_FILES}
 
 # Sidebar: Controls & Configuration
-st.sidebar.image("https://img.icons8.com/color/96/bank-building.png", width=64)
-st.sidebar.title("Loan Copilot")
+st.sidebar.markdown("## 🏦 **Loan Copilot**")
 st.sidebar.caption("Multi-Agent Underwriting Engine")
 
 # Model Environment Status
@@ -268,7 +270,11 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
     status_box = st.empty()
 
     if run_button:
-        graph = build_loan_copilot_graph()
+        with st.spinner("🚀 Initializing LangGraph multi-agent engine..."):
+            from src.state import create_initial_state, assert_state_invariants
+            from src.memory.checkpoint_config import get_session_config
+            graph = get_compiled_graph()
+
         app_id = applicant_payload.get("application_id", "APP-UNKNOWN")
         raw_text = applicant_payload.get("free_text", "")
         session_id = f"SESSION-{app_id}-{int(datetime.now().timestamp())}"
@@ -425,6 +431,7 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
 
                 if submit_review:
                     # Record review to logs/human_reviews.jsonl
+                    from src.observability.unified_logger import log_human_review
                     log_human_review(
                         application_id=applicant_payload.get("application_id"),
                         reviewer_id=reviewer_id,

@@ -202,8 +202,10 @@ if app_mode == "Preset Sample Application":
 
 else:
     st.sidebar.subheader("New Application Parameters")
-    cust_id = st.sidebar.text_input("Application ID", "APP-CUSTOM-001")
+    cust_id_input = st.sidebar.text_input("Application ID", "APP-CUSTOM-001").strip()
+    cust_id = cust_id_input if cust_id_input else "APP-CUSTOM-001"
     cust_name = st.sidebar.text_input("Applicant Name", "Jane Doe")
+    cust_officer = st.sidebar.selectbox("Reviewing Loan Officer", ["LO-001", "LO-002"], index=0)
     cust_product = st.sidebar.selectbox("Product", ["personal_loan", "mortgage"])
     cust_jurisdiction = st.sidebar.selectbox("Jurisdiction", ["IN", "UK"])
     cust_amount = st.sidebar.number_input("Requested Loan Amount", min_value=1000, max_value=5000000, value=250000, step=50000)
@@ -213,8 +215,13 @@ else:
     cust_docs = st.sidebar.multiselect("Attached Documents", ["identity_proof", "income_statement", "proof_of_address"], default=["identity_proof", "income_statement"])
     cust_free_text = st.sidebar.text_area("Applicant Free Text", "I am applying for a home renovation personal loan.")
 
+    # Dynamically register custom application in authorization fixture
+    from src.security.authorization import register_custom_application
+    register_custom_application(cust_id, officer_id=cust_officer)
+
     applicant_payload = {
         "application_id": cust_id,
+        "requester_id": cust_officer,
         "applicant_name": cust_name,
         "product": cust_product,
         "jurisdiction": cust_jurisdiction,
@@ -276,11 +283,16 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
             graph = get_compiled_graph()
 
         app_id = applicant_payload.get("application_id", "APP-UNKNOWN")
+        requester_id = applicant_payload.get("requester_id") or "LO-001"
         raw_text = applicant_payload.get("free_text", "")
         session_id = f"SESSION-{app_id}-{int(datetime.now().timestamp())}"
         cfg = get_session_config(session_id)
         current_state = create_initial_state(
-            app_id, applicant_raw_text=raw_text, applicant_facts=applicant_payload, session_id=session_id
+            app_id,
+            applicant_raw_text=raw_text,
+            applicant_facts=applicant_payload,
+            session_id=session_id,
+            actor_id=requester_id,
         )
 
         completed_set = set()

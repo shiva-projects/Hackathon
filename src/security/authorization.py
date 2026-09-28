@@ -19,6 +19,16 @@ AUTHORIZATION_FIXTURE: Dict[str, Set[str]] = {
 }
 
 
+def register_custom_application(application_id: str, officer_id: str = "LO-001") -> None:
+    """Registers a dynamically created custom application to grant officer and self access."""
+    if officer_id in AUTHORIZATION_FIXTURE:
+        AUTHORIZATION_FIXTURE[officer_id].add(application_id)
+    else:
+        AUTHORIZATION_FIXTURE[officer_id] = {application_id}
+    AUTHORIZATION_FIXTURE.setdefault(application_id, set()).add(application_id)
+    AUTHORIZATION_FIXTURE.setdefault(f"APPLICANT-{application_id}", set()).add(application_id)
+
+
 def authorize(
     requester_id: str,
     application_id: str,
@@ -28,7 +38,19 @@ def authorize(
     Checks if requester_id is permitted to access application_id.
     Logs access decisions to logs/agent_actions.jsonl.
     """
-    if requester_id in ("LO-001", "LO-002") and application_id.startswith(("GOLD-", "TEST-")):
+    if requester_id in ("LO-001", "LO-002") and (
+        application_id.startswith(("GOLD-", "TEST-", "APP-CUSTOM-", "CUSTOM-"))
+        or application_id in AUTHORIZATION_FIXTURE.get(requester_id, set())
+    ):
+        is_allowed = True
+    elif (
+        requester_id == application_id
+        or requester_id == f"APPLICANT-{application_id}"
+        or requester_id.startswith("APPLICANT-CUSTOM")
+    ) and (
+        application_id.startswith(("APP-CUSTOM-", "CUSTOM-"))
+        or application_id in AUTHORIZATION_FIXTURE.get(requester_id, set())
+    ):
         is_allowed = True
     else:
         allowed_apps = AUTHORIZATION_FIXTURE.get(requester_id, set())

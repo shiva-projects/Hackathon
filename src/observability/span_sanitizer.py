@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Union
 
 # Common PII regex patterns
 EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
-PHONE_PATTERN = re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
+PHONE_PATTERN = re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}|\d{10})\b")
 ACCOUNT_PATTERN = re.compile(r"\b(?:ACC-?|AC-?|acc-?|\d{4}-)\d{4,12}\b")
 CREDIT_ID_PATTERN = re.compile(r"\b(?:CR-?|cr-?|PAN-?|pan-?)[A-Z0-9]{8,12}\b")
 
@@ -46,42 +46,45 @@ logger = logging.getLogger(__name__)
 _presidio_analyzer = None
 _presidio_active = False
 _presidio_model_name = "unavailable"
+_presidio_initialized = False
 
-def _init_presidio():
-    global _presidio_analyzer, _presidio_active, _presidio_model_name
-    from presidio_analyzer import AnalyzerEngine
-    from presidio_analyzer.nlp_engine import NlpEngineProvider
-    import spacy.util
-    # Only load models that are actually installed locally to avoid blocking network downloads
-    installed = [m for m in ("en_core_web_sm", "en_core_web_lg") if spacy.util.is_package(m)]
-    models_to_try = installed if installed else ["en_core_web_sm"]
-    for model_name in models_to_try:
-        try:
-            _provider = NlpEngineProvider(nlp_configuration={
-                "nlp_engine_name": "spacy",
-                "models": [{"lang_code": "en", "model_name": model_name}],
-            })
-            _presidio_analyzer = AnalyzerEngine(nlp_engine=_provider.create_engine())
-            _presidio_active = True
-            _presidio_model_name = model_name
-            logger.info("[Presidio] PII Analyzer initialized with spaCy %s.", model_name)
-            return
-        except Exception as inner_e:
-            logger.debug("[Presidio] Could not load %s: %s — trying next model.", model_name, inner_e)
-    _presidio_analyzer = None
-    _presidio_active = False
-    logger.warning("[Presidio] No spaCy model available; falling back to regex-only sanitizer.")
-
-try:
-    _init_presidio()
-except Exception as e:
-    _presidio_analyzer = None
-    _presidio_active = False
-    logger.warning("[Presidio] Presidio analyzer unavailable (%s); fallback to robust domain regex sanitizer.", e)
+def _ensure_presidio():
+    global _presidio_analyzer, _presidio_active, _presidio_model_name, _presidio_initialized
+    if _presidio_initialized:
+        return
+    _presidio_initialized = True
+    try:
+        from presidio_analyzer import AnalyzerEngine
+        from presidio_analyzer.nlp_engine import NlpEngineProvider
+        import spacy.util
+        # Only load models that are actually installed locally to avoid blocking network downloads
+        installed = [m for m in ("en_core_web_sm", "en_core_web_lg") if spacy.util.is_package(m)]
+        models_to_try = installed if installed else ["en_core_web_sm"]
+        for model_name in models_to_try:
+            try:
+                _provider = NlpEngineProvider(nlp_configuration={
+                    "nlp_engine_name": "spacy",
+                    "models": [{"lang_code": "en", "model_name": model_name}],
+                })
+                _presidio_analyzer = AnalyzerEngine(nlp_engine=_provider.create_engine())
+                _presidio_active = True
+                _presidio_model_name = model_name
+                logger.info("[Presidio] PII Analyzer initialized with spaCy %s.", model_name)
+                return
+            except Exception as inner_e:
+                logger.debug("[Presidio] Could not load %s: %s — trying next model.", model_name, inner_e)
+        _presidio_analyzer = None
+        _presidio_active = False
+        logger.warning("[Presidio] No spaCy model available; falling back to regex-only sanitizer.")
+    except Exception as e:
+        _presidio_analyzer = None
+        _presidio_active = False
+        logger.warning("[Presidio] Presidio analyzer unavailable (%s); fallback to robust domain regex sanitizer.", e)
 
 
 def is_presidio_active() -> bool:
     """Returns True if Microsoft Presidio is active at runtime."""
+    _ensure_presidio()
     return _presidio_active
 
 
@@ -99,25 +102,27 @@ def sanitize_text(text: str) -> str:
     sanitized = PHONE_PATTERN.sub("[REDACTED_PHONE]", sanitized)
 
     # Layer 2: Microsoft Presidio Named Entity & PII Analyzer (catches generic SSN, NHS, IBAN, etc.)
-    if _presidio_analyzer is not None and len(sanitized) >= 7 and ("@" in sanitized or any(c.isdigit() for c in sanitized)):
-        try:
-            results = _presidio_analyzer.analyze(
-                text=sanitized,
-                entities=["EMAIL_ADDRESS", "PHONE_NUMBER", "US_SSN", "UK_NHS", "CREDIT_CARD", "IBAN_CODE"],
-                language="en",
-            )
-            for r in sorted(results, key=lambda x: x.start, reverse=True):
-                if r.entity_type == "EMAIL_ADDRESS":
-                    rep = "[REDACTED_EMAIL]"
-                elif r.entity_type == "PHONE_NUMBER":
-                    rep = "[REDACTED_PHONE]"
-                elif r.entity_type in ("CREDIT_CARD", "IBAN_CODE"):
-                    rep = "[REDACTED_ACCOUNT]"
-                else:
-                    rep = f"[REDACTED_{r.entity_type}]"
-                sanitized = sanitized[:r.start] + rep + sanitized[r.end:]
-        except Exception:
-            pass
+    if len(sanitized) >= 7 and ("@" in sanitized or any(c.isdigit() for c in sanitized)):
+        _ensure_presidio()
+        if _presidio_analyzer is not None:
+            try:
+                results = _presidio_analyzer.analyze(
+                    text=sanitized,
+                    entities=["EMAIL_ADDRESS", "PHONE_NUMBER", "US_SSN", "UK_NHS", "CREDIT_CARD", "IBAN_CODE"],
+                    language="en",
+                )
+                for r in sorted(results, key=lambda x: x.start, reverse=True):
+                    if r.entity_type == "EMAIL_ADDRESS":
+                        rep = "[REDACTED_EMAIL]"
+                    elif r.entity_type == "PHONE_NUMBER":
+                        rep = "[REDACTED_PHONE]"
+                    elif r.entity_type in ("CREDIT_CARD", "IBAN_CODE"):
+                        rep = "[REDACTED_ACCOUNT]"
+                    else:
+                        rep = f"[REDACTED_{r.entity_type}]"
+                    sanitized = sanitized[:r.start] + rep + sanitized[r.end:]
+            except Exception:
+                pass
 
     return sanitized
 

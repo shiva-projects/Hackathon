@@ -31,7 +31,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-@st.cache_resource(show_spinner="Compiling multi-agent graph...")
+@st.cache_resource(show_spinner=False)
 def get_compiled_graph():
     from src.graph import build_loan_copilot_graph
     return build_loan_copilot_graph()
@@ -298,7 +298,7 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
         completed_set = set()
         graph_box.graphviz_chart(render_pipeline_dot(current_node="input_guard", completed_nodes=completed_set), use_container_width=True)
         status_box.info("🚀 Initializing LangGraph multi-agent pipeline...")
-        time.sleep(0.35)
+        time.sleep(0.12)
 
         for event in graph.stream(current_state, config=cfg):
             for node_name, updated_state in event.items():
@@ -311,7 +311,7 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
                     use_container_width=True
                 )
                 status_box.markdown(f"**Executing Step Now**: `{title}` — *{desc}*")
-                time.sleep(0.4)
+                time.sleep(0.12)
 
                 completed_set.add(node_name)
 
@@ -372,7 +372,10 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
         st.markdown("**Computed Debt-to-Income (DTI):**")
         if dti is not None:
             dti_pct = float(dti) * 100.0
-            st.metric("DTI Ratio", f"{dti_pct:.1f}%")
+            threshold_pct = float(final_state.get("affordability", {}).get("threshold", 0.40)) * 100.0
+            is_breach = final_state.get("affordability", {}).get("breach", False)
+            delta_label = f"Limit: ≤{threshold_pct:.0f}% ({'BREACH ❌' if is_breach else 'PASS ✅'})"
+            st.metric("DTI Ratio", f"{dti_pct:.1f}%", delta=delta_label, delta_color="normal" if not is_breach else "inverse")
         else:
             st.metric("DTI Ratio", "N/A")
 
@@ -382,6 +385,21 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
             st.error("Mandatory Human Sign-off Required")
         else:
             st.success("Automated Flow (No Override Required)")
+
+    # Explicit Underwriting Rules & Decision Factors Banner
+    risk_flags = final_state.get("risk_flags", [])
+    if risk_flags:
+        st.warning(f"⚠️ **Policy Constraints Triggered ({len(risk_flags)} Rule{'s' if len(risk_flags) > 1 else ''}):**")
+        for flag in risk_flags:
+            rule_id = flag.get("rule_id", "POLICY")
+            severity = flag.get("severity", "MEDIUM")
+            msg = flag.get("message", "")
+            st.markdown(f"- **Rule `{rule_id}`** ({severity}): {msg}")
+        if dti is not None and not final_state.get("affordability", {}).get("breach", False):
+            thresh_display = float(final_state.get("affordability", {}).get("threshold", 0.40)) * 100.0
+            st.caption(f"💡 **Affordability Note**: The applicant's DTI is **{float(dti)*100.0:.1f}%** (well within the ≤{thresh_display:.0f}% policy limit). This application was **referred for human review because of other lending rules (e.g. loan size limit)**, NOT because of DTI.")
+    elif rec == "APPROVE":
+        st.success("✅ **All Policy Criteria Satisfied**: DTI is within policy limits and all mandatory documents / loan size thresholds are met.")
 
     st.markdown("### 📝 Explanatory Rationale")
     rationale_text = final_state.get("rationale") or final_state.get("refusal_reason") or "No rationale recorded."
@@ -414,13 +432,23 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
             st.write("No specific policy citations attached.")
 
     with tab2:
-        st.markdown("#### Pure Python Decimal Arithmetic")
+        st.markdown("#### Pure Python Decimal Arithmetic (Affordability Breakdown)")
         afford = final_state.get("affordability", {})
         if afford:
-            col_a, col_b, col_c = st.columns(3)
-            col_a.metric("Net Monthly Income", f"{float(afford.get('monthly_income', 0)):,.2f}")
-            col_b.metric("Proposed Loan EMI", f"{float(afford.get('proposed_emi', 0)):,.2f}")
-            col_c.metric("Disposable Income", f"{float(afford.get('disposable_income', 0)):,.2f}")
+            col_a, col_b, col_c, col_d = st.columns(4)
+            monthly_gross = float(afford.get("monthly_gross_income", 0))
+            monthly_debts = float(afford.get("monthly_obligations", 0))
+            disp_inc = float(afford.get("disposable_income", 0))
+            thresh_val = float(afford.get("threshold", 0.40)) * 100.0
+            dti_val = float(afford.get("dti", 0)) * 100.0
+
+            curr_sym = "₹" if applicant_payload.get("currency") == "INR" else "£"
+            col_a.metric("Monthly Gross Income", f"{curr_sym}{monthly_gross:,.2f}")
+            col_b.metric("Monthly Obligations", f"{curr_sym}{monthly_debts:,.2f}")
+            col_c.metric("Disposable Income", f"{curr_sym}{disp_inc:,.2f}")
+            col_d.metric("DTI Policy Ceiling", f"≤ {thresh_val:.0f}%")
+
+            st.info(f"📐 **Deterministic DTI Formula**: `monthly_obligations ({curr_sym}{monthly_debts:,.2f}) / monthly_gross_income ({curr_sym}{monthly_gross:,.2f}) = {dti_val:.2f}%` (Policy Maximum: `{thresh_val:.0f}%`)")
             st.json(afford)
         else:
             st.write("Affordability calculation was bypassed (e.g. refused by input guard or missing critical facts).")

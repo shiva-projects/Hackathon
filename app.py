@@ -412,8 +412,11 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
         st.markdown("#### Matched Policy Document")
         policy_info = final_state.get("policy_selected", {})
         if policy_info:
-            st.write(f"**Policy File**: `{policy_info.get('file_path')}`")
-            st.write(f"**Version**: `{policy_info.get('version')}` | **Max DTI**: `{policy_info.get('thresholds', {}).get('max_dti')}`")
+            source_file = policy_info.get("source_file") or policy_info.get("file_path", "N/A")
+            dti_rule = next((r for r in policy_info.get("rules", []) if r.get("rule_type") == "dti_max"), None)
+            max_dti_str = f"{float(dti_rule.get('value', 0.40)):.1%}" if dti_rule else "40.0%"
+            st.write(f"**Policy File**: `{source_file}`")
+            st.write(f"**Version**: `{policy_info.get('version', 'v2.0')}` | **Policy Max DTI**: `{max_dti_str}`")
         else:
             st.write("No policy matched.")
 
@@ -444,11 +447,31 @@ if run_button or f"result_{applicant_payload.get('application_id')}" in st.sessi
 
             curr_sym = "₹" if applicant_payload.get("currency") == "INR" else "£"
             col_a.metric("Monthly Gross Income", f"{curr_sym}{monthly_gross:,.2f}")
-            col_b.metric("Monthly Obligations", f"{curr_sym}{monthly_debts:,.2f}")
+            col_b.metric("Existing Debt Obligations", f"{curr_sym}{monthly_debts:,.2f}")
             col_c.metric("Disposable Income", f"{curr_sym}{disp_inc:,.2f}")
             col_d.metric("DTI Policy Ceiling", f"≤ {thresh_val:.0f}%")
 
-            st.info(f"📐 **Deterministic DTI Formula**: `monthly_obligations ({curr_sym}{monthly_debts:,.2f}) / monthly_gross_income ({curr_sym}{monthly_gross:,.2f}) = {dti_val:.2f}%` (Policy Maximum: `{thresh_val:.0f}%`)")
+            st.info(f"📐 **Current Debt-to-Income (Front-End DTI)**: `monthly_obligations ({curr_sym}{monthly_debts:,.2f}) / monthly_gross_income ({curr_sym}{monthly_gross:,.2f}) = {dti_val:.2f}%` (Policy Maximum: `{thresh_val:.0f}%` — {'BREACH ❌' if afford.get('breach') else 'PASS ✅'})")
+
+            # Projected Loan EMI & Total Debt Analysis
+            req_amount = float(applicant_payload.get("requested_amount", 0))
+            tenure_mos = int(applicant_payload.get("tenure_months", 36))
+            if req_amount > 0 and tenure_mos > 0:
+                annual_rate = 0.12  # Standard 12% indicative personal loan APR
+                monthly_rate = annual_rate / 12
+                # Standard amortization EMI formula
+                emi_factor = (monthly_rate * (1 + monthly_rate) ** tenure_mos) / (((1 + monthly_rate) ** tenure_mos) - 1)
+                est_emi = req_amount * emi_factor
+                total_monthly_commitment = monthly_debts + est_emi
+                post_loan_dti = (total_monthly_commitment / monthly_gross * 100.0) if monthly_gross > 0 else 0.0
+
+                st.markdown("---")
+                st.markdown("#### 📊 Projected Loan Impact (Back-End Debt Burden)")
+                col_e, col_f, col_g = st.columns(3)
+                col_e.metric("Requested Loan Amount", f"{curr_sym}{req_amount:,.2f}")
+                col_f.metric(f"Estimated Loan EMI ({tenure_mos} mos @ 12%)", f"{curr_sym}{est_emi:,.2f}")
+                col_g.metric("Projected Total DTI (Back-End)", f"{post_loan_dti:.1f}%", delta=f"{'Breaches 40%' if post_loan_dti > 40 else 'Within 40%'}")
+
             st.json(afford)
         else:
             st.write("Affordability calculation was bypassed (e.g. refused by input guard or missing critical facts).")

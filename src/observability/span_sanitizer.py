@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Union
 
 # Common PII regex patterns
 EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
-PHONE_PATTERN = re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}|\d{10})\b")
+PHONE_PATTERN = re.compile(r"(?<![A-Za-z0-9_])(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}|\b[6-9]\d{9}\b)(?![A-Za-z0-9_])")
 ACCOUNT_PATTERN = re.compile(r"\b(?:ACC-?|AC-?|acc-?|\d{4}-)\d{4,12}\b")
 CREDIT_ID_PATTERN = re.compile(r"\b(?:CR-?|cr-?|PAN-?|pan-?)[A-Z0-9]{8,12}\b")
 AADHAAR_PATTERN = re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b")

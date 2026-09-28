@@ -24,11 +24,11 @@ This starts a local web server (usually at `http://localhost:8501`) featuring a 
    - Click **🚀 Run Multi-Agent Underwriting Copilot**.
    - Notice the green **`✅ APPROVE`** badge, pure Decimal DTI computation (**18.2%** vs 40% threshold), policy citation with SHA256 integrity hash, and human-readable rationale.
 3. **Test Affordability DTI Breach (`APP-002`)**:
-   - Select `APP-002` (£18,000 requested loan with existing debt).
+   - Select `APP-002` (₹500,000 requested loan with existing debt).
    - Click **🚀 Run Multi-Agent Underwriting Copilot**.
-   - Notice the red **`❌ DECLINE`** badge because DTI (**53.3%**) breaches the 40% policy threshold.
+   - Notice the amber **`⚠️ REFER`** badge because DTI (**52.0%**) breaches the 40% policy threshold (PL-07).
 4. **Test Mandatory Human Review (`APP-004`)**:
-   - Select `APP-004` (high-value loan £35,000 > £25,000 policy threshold).
+   - Select `APP-004` (high-value loan ₹3,000,000 > ₹2,500,000 policy threshold).
    - Click **🚀 Run Multi-Agent Underwriting Copilot**.
    - Notice the amber **`⚠️ REFER`** badge.
    - Switch to the **Human Review (HITL)** tab at the bottom, select underwriter determination `APPROVE`, add notes, and submit. The review is written to `logs/human_reviews.jsonl`!
@@ -97,9 +97,9 @@ Streams live JSON frames over HTTP/SSE as the supervisor, eligibility agent, ris
 
 ## 🧪 3. Running Automated Tests
 
-Run the full pytest suite (89 tests covering routing, loops, MCP tools, state invariants, prompt injection, and authorization):
+Run `pytest -q` to execute the full test suite (34 test files covering routing, loops, MCP tools, state invariants, prompt injection, resilience, and multi-provider compliance):
 ```powershell
-pytest -v
+pytest -q
 ```
 
 ---

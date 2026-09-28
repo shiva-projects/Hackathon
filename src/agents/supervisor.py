@@ -15,9 +15,12 @@ def supervisor_router(state: LoanState) -> str:
     intent = state.get("intent", "new_application")
     request_status = state.get("request_status")
 
-    # If request was already refused, stop
+    # If request was already refused or unable to complete, stop
     if request_status == "REFUSED":
         return "refusal_node"
+
+    if state.get("decision_status") == "UNABLE_TO_COMPLETE":
+        return "__end__"
 
     # If still waiting for clarification (no response yet), pause
     if state.get("clarification_needed"):

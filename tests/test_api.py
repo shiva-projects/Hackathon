@@ -13,7 +13,13 @@ from src.api.server import app
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    yield TestClient(app)
+    # Cleanup test files generated in outputs/sample_results/
+    for p in Path("outputs/sample_results").glob("TEST-APP-API-*.json"):
+        try:
+            p.unlink()
+        except OSError:
+            pass
 
 
 def test_health_endpoint(client):

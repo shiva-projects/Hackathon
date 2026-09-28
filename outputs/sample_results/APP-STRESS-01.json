@@ -1,7 +1,7 @@
 {
   "application_id": "APP-STRESS-01",
-  "session_id": "SESSION-APP-STRESS-01-1790492733",
-  "run_id": "RUN-20260927123455",
+  "session_id": "SESSION-APP-STRESS-01-1790605379",
+  "run_id": "RUN-20260928194900",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -85,6 +85,9 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-07",
+      "rule_ids": [
+        "PL-07"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-dti-002",
       "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
@@ -95,6 +98,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-15",
+      "rule_ids": [
+        "PL-15",
+        "PL-12",
+        "PL-19"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-limits-003",
       "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
@@ -105,6 +113,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-18",
+      "rule_ids": [
+        "PL-18",
+        "PL-DOC-01",
+        "PL-DOC-02"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-docs-004",
       "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
@@ -112,6 +125,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The deterministic underwriting engine has determined that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 25.0% and no breach flags. Because all criteria are satisfied, the system\u2019s recommendation is to **APPROVE** the loan.",
-  "timestamp": "2026-09-27T07:05:35.375739+00:00"
+  "rationale": "Rationale generation was unavailable. The recommendation below was produced entirely from the selected policy and deterministic underwriting rules.",
+  "timestamp": "2026-09-28T14:24:34.852506+00:00"
 }

@@ -1,7 +1,7 @@
 {
   "application_id": "APP-004",
-  "session_id": "SESSION-APP-004-1790492727",
-  "run_id": "RUN-20260927123455",
+  "session_id": "SESSION-APP-004-1790605249",
+  "run_id": "RUN-20260928194900",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -98,6 +98,9 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-07",
+      "rule_ids": [
+        "PL-07"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-dti-002",
       "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
@@ -108,6 +111,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-15",
+      "rule_ids": [
+        "PL-15",
+        "PL-12",
+        "PL-19"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-limits-003",
       "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
@@ -118,6 +126,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-18",
+      "rule_ids": [
+        "PL-18",
+        "PL-DOC-01",
+        "PL-DOC-02"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-docs-004",
       "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
@@ -125,6 +138,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The system has generated a **REFER** recommendation because the requested loan amount of\u202f$3,000,000 exceeds the policy limit of\u202f$1,500,000, triggering a high\u2011risk flag (LOAN_AMOUNT_EXCEEDED). Although the applicant\u2019s debt\u2011to\u2011income ratio is low at\u202f8.0% and there is no breach status, the loan size alone disqualifies the application under the current underwriting rules. Please review the case further to determine if any exceptions or alternative structures are appropriate.",
-  "timestamp": "2026-09-27T07:05:30.957519+00:00"
+  "rationale": "Rationale generation was unavailable. The recommendation below was produced entirely from the selected policy and deterministic underwriting rules.",
+  "timestamp": "2026-09-28T14:21:56.027298+00:00"
 }

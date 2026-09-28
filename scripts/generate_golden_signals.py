@@ -39,8 +39,20 @@ def generate_golden_signals(
     eval_report_path: str = "reports/eval_report.json",
     output_json_path: str = "reports/golden_signals.json",
     output_csv_path: str = "reports/dashboard_data.csv",
+    run_id: str = None,
 ) -> dict:
     print("Generating golden signals report...")
+
+    # Load source_run_id from latest_run.json if not explicitly provided
+    latest_run_p = Path("reports/latest_run.json")
+    source_run_id = run_id
+    if not source_run_id and latest_run_p.exists():
+        try:
+            with open(latest_run_p, "r", encoding="utf-8") as f:
+                source_run_id = json.load(f).get("run_id")
+        except Exception:
+            pass
+    source_run_id = source_run_id or "RUN-DEFAULT"
 
     # 1. Read traces
     t_path = Path(traces_path)
@@ -62,70 +74,91 @@ def generate_golden_signals(
         if "phoenix" in sources or "application_tracer" in sources:
             trace_source = "phoenix"
 
-    all_lats = thinking_lats + acting_lats + tool_lats
+    if "run_id" in df.columns:
+        run_lats = []
+        for rid, group in df.groupby("run_id"):
+            lats = group["latency_ms"].dropna().tolist()
+            if lats:
+                run_lats.append(sum(float(x) for x in lats if float(x) > 0))
+        e2e_lats = run_lats if run_lats else (thinking_lats + acting_lats + tool_lats)
+    else:
+        e2e_lats = thinking_lats + acting_lats + tool_lats
+
     latency_metrics = {
         "thinking": compute_percentiles(thinking_lats),
         "acting": compute_percentiles(acting_lats),
         "tool": compute_percentiles(tool_lats),
-        "end_to_end": compute_percentiles(all_lats),
+        "end_to_end": compute_percentiles(e2e_lats),
     }
 
-    # 2. Token counts & Cost estimation from reports/cost_config.json matching reports/environment.json
-    env_p = Path("reports/environment.json")
-    resolved_provider = "gemini"
-    if env_p.exists():
-        try:
-            with open(env_p, "r", encoding="utf-8") as f:
-                env_info = json.load(f)
-                prov = env_info.get("provider", "gemini")
-                if prov in ("google", "gemini"):
-                    resolved_provider = "gemini"
-                elif prov == "groq":
-                    resolved_provider = "groq"
-        except Exception:
-            resolved_provider = "gemini"
-
+    # 2. Token counts & Cost estimation with model-specific pricing from cost_config.json
     cost_cfg_p = Path(cost_config_path)
+    model_pricing = {}
     if cost_cfg_p.exists():
-        with open(cost_cfg_p, "r", encoding="utf-8") as f:
-            cost_raw = json.load(f)
-        if "providers" in cost_raw and resolved_provider in cost_raw["providers"]:
-            cost_cfg = cost_raw["providers"][resolved_provider]
-        else:
-            cost_cfg = cost_raw
-    else:
-        cost_cfg = {
-            "model": "gemini-2.0-flash",
-            "input_price_per_million": 0.10,
-            "output_price_per_million": 0.40,
-            "pricing_source": "https://ai.google.dev/pricing",
-        }
+        try:
+            with open(cost_cfg_p, "r", encoding="utf-8") as f:
+                c_data = json.load(f)
+                model_pricing = c_data.get("models", {})
+        except Exception:
+            pass
 
-    # Token counts — read from logs/llm_calls.jsonl written by src/llm/client.py
-    # on every real LLM invocation. Falls back to estimates when no live calls occurred.
+    # Authoritative fallback rates if model not in cost_config.json
+    DEFAULT_RATES = {
+        "openai/gpt-oss-120b": (0.15, 0.60),
+        "openai/gpt-oss-20b": (0.075, 0.30),
+        "gemini-3.7-flash": (0.75, 3.75),
+    }
+
     llm_log_path = Path("logs/llm_calls.jsonl")
     input_tokens = 0
     output_tokens = 0
+    total_cost_usd = 0.0
     tokens_source = "measured"
+    recorded_models = []
+
     if llm_log_path.exists() and llm_log_path.stat().st_size > 0:
-        for line in llm_log_path.read_text(encoding="utf-8").splitlines():
+        lines = llm_log_path.read_text(encoding="utf-8").splitlines()
+        # Filter strictly by the current run_id to avoid aggregating historical runs
+        records = []
+        for line in lines:
             if not line.strip():
                 continue
             try:
                 rec = json.loads(line)
-                input_tokens += int(rec.get("input_tokens", 0))
-                output_tokens += int(rec.get("output_tokens", 0))
+                rec_run = rec.get("run_id", "")
+                if rec_run == source_run_id or (source_run_id.startswith("RUN-") and rec_run.startswith(source_run_id)):
+                    records.append(rec)
             except Exception:
                 pass
-    if input_tokens == 0 and output_tokens == 0:
-        # No live calls — use conservative estimates and mark as such
-        input_tokens = 24500
-        output_tokens = 4800
-        tokens_source = "estimated_no_live_key"
 
-    cost_in = (input_tokens / 1_000_000) * float(cost_cfg.get("input_price_per_million", 0.10))
-    cost_out = (output_tokens / 1_000_000) * float(cost_cfg.get("output_price_per_million", 0.40))
-    total_cost_usd = round(cost_in + cost_out, 6)
+        # Enforce that run-specific records exist and use real measured token accounting
+        if not records:
+            raise RuntimeError(f"No LLM telemetry found for run_id={source_run_id}")
+
+        if any(r.get("usage_source") != "provider_usage_metadata" for r in records):
+            raise RuntimeError("Current run contains unmeasured token records without provider_usage_metadata")
+
+        for rec in records:
+            in_tok = int(rec.get("input_tokens", 0))
+            out_tok = int(rec.get("output_tokens", 0))
+            model_name = rec.get("model", "")
+            if model_name:
+                recorded_models.append(model_name)
+
+            if model_name in model_pricing:
+                in_rate = model_pricing[model_name].get("input_price_per_million", 0.15)
+                out_rate = model_pricing[model_name].get("output_price_per_million", 0.60)
+            else:
+                in_rate, out_rate = DEFAULT_RATES.get(model_name, (0.15, 0.60))
+
+            input_tokens += in_tok
+            output_tokens += out_tok
+            total_cost_usd += (in_tok / 1_000_000) * in_rate + (out_tok / 1_000_000) * out_rate
+        tokens_source = "measured"
+    else:
+        raise RuntimeError(f"No LLM logs found in logs/llm_calls.jsonl for run_id={source_run_id}")
+
+    total_cost_usd = round(total_cost_usd, 6)
 
     # 3. Import accuracy from eval_report.json
     eval_p = Path(eval_report_path)
@@ -141,12 +174,33 @@ def generate_golden_signals(
             "faithfulness": 1.0,
         }
 
+    # Resolve provider and model from environment.json and recorded calls
+    env_p = Path("reports/environment.json")
+    resolved_provider = "groq"
+    env_model = None
+    if env_p.exists():
+        try:
+            with open(env_p, "r", encoding="utf-8") as f:
+                env_info = json.load(f)
+                resolved_provider = env_info.get("provider", "groq")
+                env_model = env_info.get("model")
+        except Exception:
+            resolved_provider = "groq"
+
+    # Prioritize environment.json model or the most frequent model recorded in the run
+    if env_model:
+        resolved_model = env_model
+    elif recorded_models:
+        resolved_model = recorded_models[-1]
+    else:
+        resolved_model = "openai/gpt-oss-120b" if resolved_provider == "groq" else "gemini-3.7-flash"
+
     golden_signals = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source_run_id": "RUN-PHOENIX-CURRENT",
+        "source_run_id": source_run_id,
         "trace_source": trace_source,
         "provider": resolved_provider,
-        "model": cost_cfg.get("model", "gemini-2.0-flash"),
+        "model": resolved_model,
         "latency_by_span_type": latency_metrics,
         "token_usage": {
             "input_tokens": input_tokens,
@@ -157,7 +211,8 @@ def generate_golden_signals(
         "cost_governance": {
             "cost_config_used": cost_config_path,
             "resolved_provider": resolved_provider,
-            "pricing_source": cost_cfg.get("pricing_source", "https://ai.google.dev/pricing"),
+            "resolved_model": resolved_model,
+            "pricing_source": "https://console.groq.com/docs/models" if resolved_provider == "groq" else "https://ai.google.dev/pricing",
             "estimated_cost_usd": total_cost_usd,
         },
         "evaluation_metrics": eval_metrics,
@@ -169,11 +224,35 @@ def generate_golden_signals(
     with open(out_json, "w", encoding="utf-8") as f:
         json.dump(golden_signals, f, indent=2)
 
-    # Generate dashboard data CSV
+    # Generate dashboard data CSV: correctly assigns token volume and costs to thinking spans
     dashboard_rows = [
-        {"span_type": "thinking", "p50_latency_ms": latency_metrics["thinking"]["p50_ms"], "p95_latency_ms": latency_metrics["thinking"]["p95_ms"], "token_volume": output_tokens, "cost_usd": round(cost_out, 5)},
-        {"span_type": "acting", "p50_latency_ms": latency_metrics["acting"]["p50_ms"], "p95_latency_ms": latency_metrics["acting"]["p95_ms"], "token_volume": 0, "cost_usd": 0.0},
-        {"span_type": "tool", "p50_latency_ms": latency_metrics["tool"]["p50_ms"], "p95_latency_ms": latency_metrics["tool"]["p95_ms"], "token_volume": input_tokens, "cost_usd": round(cost_in, 5)},
+        {
+            "span_type": "thinking",
+            "p50_latency_ms": latency_metrics["thinking"]["p50_ms"],
+            "p95_latency_ms": latency_metrics["thinking"]["p95_ms"],
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "token_volume": input_tokens + output_tokens,
+            "cost_usd": total_cost_usd,
+        },
+        {
+            "span_type": "acting",
+            "p50_latency_ms": latency_metrics["acting"]["p50_ms"],
+            "p95_latency_ms": latency_metrics["acting"]["p95_ms"],
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "token_volume": 0,
+            "cost_usd": 0.0,
+        },
+        {
+            "span_type": "tool",
+            "p50_latency_ms": latency_metrics["tool"]["p50_ms"],
+            "p95_latency_ms": latency_metrics["tool"]["p95_ms"],
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "token_volume": 0,
+            "cost_usd": 0.0,
+        },
     ]
     dash_df = pd.DataFrame(dashboard_rows)
     dash_df.to_csv(output_csv_path, index=False)
@@ -205,7 +284,7 @@ def generate_golden_signals(
         costs = [r["cost_usd"] for r in dashboard_rows]
         ax2.bar(categories, costs, color=['#059669', '#9CA3AF', '#D97706'], width=0.5)
         ax2.set_ylabel('Cost (USD)')
-        model_name = cost_cfg.get("model", resolved_provider)
+        model_name = resolved_model
         ax2.set_title(f'Token Cost Breakdown ({resolved_provider.upper()} - {model_name})')
         ax2.grid(True, linestyle='--', alpha=0.5)
 

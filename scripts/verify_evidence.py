@@ -309,23 +309,37 @@ def check_cross_artifact_consistency():
                 if data.get("review_id") != rev.get("review_id"):
                     return False, f"Review ID mismatch for {app_id}: sample_result={data.get('review_id')} vs review_log={rev.get('review_id')}"
                     
-            # Check policy citations text hash integrity
+            # Check policy citations text hash integrity against source file
             policy_sel = data.get("policy_selected")
             citations = data.get("policy_citations", [])
             for cit in citations:
                 # 14.8: policy_citations[*].version == policy_selected.version
                 if policy_sel and cit.get("version") != policy_sel.get("version"):
                     return False, f"Citation version mismatch in {app_id}: cit={cit.get('version')} vs sel={policy_sel.get('version')}"
-                # 14.12: text_hash validation
+                # 14.12: text_hash validation against actual source file content
                 source_file = cit.get("source_file")
                 text_hash = cit.get("text_hash")
+                chunk_id = cit.get("chunk_id")
                 if source_file and text_hash:
                     src_path = REPO_ROOT / source_file
-                    if src_path.exists():
+                    if not src_path.exists():
+                        return False, f"Citation source file {source_file} does not exist for {app_id}"
+                    src_content = src_path.read_text(encoding="utf-8")
+                    
+                    # Extract chunk directly from source file using section delimiter
+                    chunk_pattern = re.compile(rf"(## .*?\(Chunk:\s*{re.escape(str(chunk_id))}\)[\s\S]*?)(?=\n## |\Z)")
+                    m = chunk_pattern.search(src_content)
+                    if m:
+                        extracted_source_chunk = m.group(1).strip()
+                    else:
                         chunk_text = cit.get("text") or cit.get("matched_text", "")
-                        actual_hash = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
-                        if actual_hash != text_hash:
-                            return False, f"Text hash mismatch for citation {cit.get('chunk_id') or cit.get('citation_id')} in {app_id}"
+                        if not chunk_text or chunk_text.strip() not in src_content:
+                            return False, f"Citation chunk {chunk_id} not found in source file {source_file}"
+                        extracted_source_chunk = chunk_text.strip()
+
+                    actual_hash = hashlib.sha256(extracted_source_chunk.encode("utf-8")).hexdigest()
+                    if actual_hash != text_hash:
+                        return False, f"Text hash mismatch for citation {chunk_id} in {app_id}: computed {actual_hash} vs recorded {text_hash}"
                             
     # Check failure analysis cited run_ids exist in traces or failure cases
     failure_md = REPO_ROOT / "docs" / "failure-analysis.md"

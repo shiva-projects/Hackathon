@@ -39,6 +39,39 @@ from scripts.generate_golden_signals import generate_golden_signals
 from scripts.verify_evidence import main as verify_evidence_main
 
 
+def update_evidence_manifest():
+    """Computes exact SHA-256 and byte sizes for all artifacts in reports/evidence_manifest.json."""
+    import hashlib
+    from datetime import datetime, timezone
+    manifest_p = PROJECT_ROOT / "reports" / "evidence_manifest.json"
+    if not manifest_p.exists():
+        return
+    with open(manifest_p, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    
+    artifacts = data.get("artifacts", {})
+    for rel_path in list(artifacts.keys()):
+        target = PROJECT_ROOT / rel_path
+        if target.exists():
+            content = target.read_bytes()
+            artifacts[rel_path] = {
+                "exists": True,
+                "size_bytes": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }
+        else:
+            artifacts[rel_path] = {
+                "exists": False,
+                "size_bytes": 0,
+                "sha256": None,
+            }
+    data["generated_at"] = datetime.now(timezone.utc).isoformat()
+    data["artifacts"] = artifacts
+    with open(manifest_p, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    print(f"Updated reports/evidence_manifest.json with {len(artifacts)} authentic SHA-256 hashes.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Regenerate all evidence from the latest pipeline run.")
     parser.add_argument("--run-id", type=str, default=None, help="Explicit run ID to derive evidence from.")
@@ -97,6 +130,11 @@ def main():
     print("=" * 60)
     from scripts.capture_phoenix_ui import capture_phoenix_ui
     capture_phoenix_ui(output_path="reports/dashboard.png")
+
+    print("\n" + "=" * 60)
+    print("STEP 4c: RECOMPUTING EVIDENCE MANIFEST SHA-256 HASHES")
+    print("=" * 60)
+    update_evidence_manifest()
 
     print("\n" + "=" * 60)
     print("STEP 5: VERIFYING COMMITTED EVIDENCE (scripts/verify_evidence.py)")

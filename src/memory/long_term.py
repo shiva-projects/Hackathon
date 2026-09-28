@@ -6,9 +6,12 @@ Per plan.md Section 6.3 & 14.5.
 """
 
 import json
+import threading
 from pathlib import Path
 from typing import Dict, Any, Optional
 from src.memory.memory_write_policy import validate_long_term_fact
+
+_MEMORY_LOCK = threading.Lock()
 
 
 try:
@@ -25,6 +28,7 @@ class LongTermMemoryStore:
     Tier 3 Persistent semantic memory store for verified applicant attributes.
     Backed by LangGraph BaseStore and LangMem namespaced memory tools (plan.md Section 6.3 & 14.5).
     Namespaced strictly by (applicant_id, memory_type).
+    Provides atomic, concurrency-safe writes and cross-session persistence.
     """
 
     def __init__(self, storage_path: str = "data/long_term_memory.json"):
@@ -46,19 +50,26 @@ class LongTermMemoryStore:
             self.langgraph_store = None
 
     def _load(self) -> Dict[str, Any]:
-        if self.storage_path.exists():
-            try:
-                with open(self.storage_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(f"Could not load long-term memory store from {self.storage_path}: {e}")
-                return {}
-        return {}
+        with _MEMORY_LOCK:
+            if self.storage_path.exists():
+                try:
+                    with open(self.storage_path, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Could not load long-term memory store from {self.storage_path}: {e}")
+                    return {}
+            return {}
 
     def _save(self) -> None:
-        with open(self.storage_path, "w", encoding="utf-8") as f:
-            json.dump(self._cache, f, indent=2)
+        import tempfile
+        import os
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        with _MEMORY_LOCK:
+            with tempfile.NamedTemporaryFile("w", dir=self.storage_path.parent, delete=False, encoding="utf-8") as f:
+                json.dump(self._cache, f, indent=2)
+                temp_name = f.name
+            os.replace(temp_name, self.storage_path)
 
     def _make_key(self, applicant_id: str, memory_type: str) -> str:
         return f"{applicant_id}:{memory_type}"
@@ -81,10 +92,11 @@ class LongTermMemoryStore:
             return False
 
         namespace_key = self._make_key(applicant_id, memory_type)
-        if namespace_key not in self._cache:
-            self._cache[namespace_key] = {}
+        with _MEMORY_LOCK:
+            if namespace_key not in self._cache:
+                self._cache[namespace_key] = {}
+            self._cache[namespace_key][fact_key] = fact_value
 
-        self._cache[namespace_key][fact_key] = fact_value
         self._save()
 
         # Update LangMem store

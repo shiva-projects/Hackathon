@@ -1,7 +1,7 @@
 {
   "application_id": "APP-AMB-01",
-  "session_id": "SESSION-APP-AMB-01-1790492698",
-  "run_id": "RUN-20260927123455",
+  "session_id": "SESSION-APP-AMB-01-1790605181",
+  "run_id": "RUN-20260928194900",
   "request_status": "REFUSED",
   "refusal_reason": "AUTHORIZATION_DENIED",
   "decision_status": "N/A",
@@ -15,5 +15,5 @@
   "policy_selected": {},
   "policy_citations": [],
   "rationale": "Request refused: AUTHORIZATION_DENIED.",
-  "timestamp": "2026-09-27T07:05:10.145705+00:00"
+  "timestamp": "2026-09-28T14:19:50.386373+00:00"
 }

@@ -55,24 +55,53 @@ def validate_provider_environment(
                 "reason": f"Config load failure: {exc}",
             }
 
-    resolution_order = config.get("resolution_order", ["gemini", "groq"])
+    forced_env_provider = (os.environ.get("LLM_PROVIDER") or "").strip().lower()
+    resolution_order = list(config.get("resolution_order", ["gemini", "groq"]))
     providers = config.get("providers", {})
-    available = []
     dummy_values = {"", "your_gemini_api_key_here", "your_groq_api_key_here", "placeholder"}
 
+    def _is_live(val: Optional[str]) -> bool:
+        if not val:
+            return False
+        v_clean = val.strip().lower()
+        return not (v_clean in dummy_values or v_clean.startswith("your_") or "placeholder" in v_clean)
+
+    # Explicit provider override takes absolute precedence and fails closed if unconfigured
+    if forced_env_provider:
+        if forced_env_provider not in providers:
+            return {
+                "has_live_key": False,
+                "active_provider": None,
+                "provider_config": None,
+                "available_providers": [],
+                "reason": f"Unknown LLM_PROVIDER='{forced_env_provider}'. Configured providers: {list(providers.keys())}",
+            }
+        p_cfg = providers[forced_env_provider]
+        env_key = p_cfg.get("env_key")
+        val = os.environ.get(env_key)
+        if not _is_live(val):
+            return {
+                "has_live_key": False,
+                "active_provider": None,
+                "provider_config": None,
+                "available_providers": [],
+                "reason": f"LLM_PROVIDER='{forced_env_provider}' was requested but {env_key} is not configured.",
+            }
+        return {
+            "has_live_key": True,
+            "active_provider": forced_env_provider,
+            "provider_config": p_cfg,
+            "available_providers": [forced_env_provider],
+            "reason": f"Explicitly resolved {forced_env_provider} via LLM_PROVIDER override using {env_key}",
+        }
+
+    available = []
     for name in resolution_order:
         p_cfg = providers.get(name)
         env_key = p_cfg.get("env_key")
-        val = (os.environ.get(env_key) or "").strip()
-        if val:
-            val_lower = val.lower()
-            is_dummy = (
-                val_lower in dummy_values
-                or val_lower.startswith("your_")
-                or "placeholder" in val_lower
-            )
-            if not is_dummy:
-                available.append(name)
+        val = os.environ.get(env_key)
+        if _is_live(val):
+            available.append(name)
 
     if available:
         active = available[0]

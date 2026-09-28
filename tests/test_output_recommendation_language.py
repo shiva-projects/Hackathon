@@ -49,9 +49,13 @@ def test_rationale_numeric_consistency_validation():
     assert is_valid is False
     assert "contradicting deterministic recommendation" in msg
 
-    # 4. screen_output attaches correction on hallucination
+    # 4. screen_output fails closed: completely replaces contradictory prose with deterministic rationale
     corrected = screen_output(hallucinated_prose, "REFER", dti=Decimal("0.55"))
-    assert "[Correction: Official deterministic assessment is REFER based on calculated DTI of 55.0%]" in corrected
+    assert "15.0%" not in corrected
+    assert "REFER" in corrected
+    assert "55.0%" in corrected
+    assert "AI recommendation: REFER" in corrected
+    assert "[Correction:" not in corrected
 
 
 def test_versioned_prompt_construction():

@@ -1,7 +1,7 @@
 {
   "application_id": "APP-003",
-  "session_id": "SESSION-APP-003-1790492725",
-  "run_id": "RUN-20260927123455",
+  "session_id": "SESSION-APP-003-1790605217",
+  "run_id": "RUN-20260928194900",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -92,6 +92,9 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-07",
+      "rule_ids": [
+        "PL-07"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-dti-002",
       "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
@@ -102,6 +105,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-15",
+      "rule_ids": [
+        "PL-15",
+        "PL-12",
+        "PL-19"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-limits-003",
       "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
@@ -112,6 +120,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-18",
+      "rule_ids": [
+        "PL-18",
+        "PL-DOC-01",
+        "PL-DOC-02"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-docs-004",
       "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
@@ -119,6 +132,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The application was declined because it failed the mandatory eligibility rule PL\u2011DOC\u201102: the required\u202fincome_statement\u202fdocument was not provided. While the borrower\u2019s DTI is low at 6.7% and there are no breach flags, the missing income statement prevents verification of repayment capacity, so the loan cannot be approved.",
-  "timestamp": "2026-09-27T07:05:27.940455+00:00"
+  "rationale": "The AI recommendation is **DECLINE (Advisory)** under policy v2.0.  \nThe calculated debt\u2011to\u2011income ratio is **6.7\u202f%**, which is within the 40.0\u202f% threshold set by PL\u201107, but the application fails mandatory eligibility rule **PL\u2011DOC\u201102** because the required **income_statement** document is missing.  \nAccording to PL\u201118, the absence of mandatory income documentation triggers a mandatory eligibility decline, so the loan must be declined.",
+  "timestamp": "2026-09-28T14:20:49.834057+00:00"
 }

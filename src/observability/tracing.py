@@ -231,6 +231,8 @@ class ExecutionTracer:
         step_id: Optional[str] = None,
         application_id: Optional[str] = None,
         error: Optional[str] = None,
+        attributes: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """
         Records an application-level span with measured wall-clock latency.
@@ -252,6 +254,7 @@ class ExecutionTracer:
             "application_id": application_id,
             "inputs": sanitize_data(inputs),
             "outputs": sanitize_data(outputs),
+            "attributes": sanitize_data(attributes or {}),
             "error": error,
             "status": "error" if error else "success",
             "trace_source": "application_tracer",  # explicit: NOT Phoenix OTEL spans

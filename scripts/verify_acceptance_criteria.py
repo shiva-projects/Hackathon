@@ -126,13 +126,28 @@ def verify_ac_06():
     cross_file = REPO_ROOT / "outputs" / "sample_results" / "cross_applicant_case.json"
     if inj_file.exists():
         data = json.loads(inj_file.read_text(encoding="utf-8"))
-        if data.get("request_status") != "REFUSED" and data.get("decision_status") != "UNABLE_TO_COMPLETE":
-            # prompt injection was not guarded properly
-            pass
+        if data.get("request_status") != "REFUSED":
+            return False, f"Prompt injection case was not refused (status={data.get('request_status')})"
     if cross_file.exists():
         data = json.loads(cross_file.read_text(encoding="utf-8"))
         if data.get("request_status") != "REFUSED":
-            return False, "cross applicant access was not refused"
+            return False, f"Cross-applicant access was not refused (status={data.get('request_status')})"
+
+    # Verify no unredacted raw PII in any committed log file
+    from src.observability.span_sanitizer import (
+        EMAIL_PATTERN, PHONE_PATTERN, ACCOUNT_PATTERN,
+        CREDIT_ID_PATTERN, AADHAAR_PATTERN, SSN_PATTERN, PAN_PATTERN
+    )
+    pii_patterns = [EMAIL_PATTERN, PHONE_PATTERN, ACCOUNT_PATTERN, CREDIT_ID_PATTERN, AADHAAR_PATTERN, SSN_PATTERN, PAN_PATTERN]
+    log_dir = REPO_ROOT / "logs"
+    if log_dir.exists():
+        for log_f in log_dir.glob("*.jsonl"):
+            for line_no, line in enumerate(log_f.read_text(encoding="utf-8").splitlines(), 1):
+                if not line.strip():
+                    continue
+                for pat in pii_patterns:
+                    if pat.search(line):
+                        return False, f"Unredacted PII pattern matched in {log_f.name} line {line_no}"
     return True, "injection refused; cross-applicant refused; no PII in output/logs"
 
 
@@ -157,7 +172,7 @@ def verify_ac_07():
 
 
 def verify_ac_08():
-    # AC-08: >=3 failures documented, citations resolve
+    # AC-08: >=3 failures documented, citations and failure traces resolve
     fail_doc = REPO_ROOT / "docs" / "failure-analysis.md"
     if not fail_doc.exists():
         return False, "docs/failure-analysis.md missing"
@@ -165,7 +180,53 @@ def verify_ac_08():
     for fid in ["FAIL-001", "FAIL-002", "FAIL-003"]:
         if fid not in text:
             return False, f"Missing failure {fid} in docs/failure-analysis.md"
-    return True, ">=3 failures documented, citations resolve"
+
+    # Verify failure test fixture files exist
+    fixtures = [
+        "data/failure_cases/wrong_policy_selection.json",
+        "data/failure_cases/mcp_timeout.json",
+        "data/failure_cases/rag_poisoning.json",
+    ]
+    for fix in fixtures:
+        if not (REPO_ROOT / fix).exists():
+            return False, f"Failure fixture {fix} cited in failure-analysis.md does not exist"
+
+    # Verify cited replay spans exist in phoenix_spans.parquet
+    parquet_path = REPO_ROOT / "traces" / "phoenix_spans.parquet"
+    if parquet_path.exists():
+        import pandas as pd
+        try:
+            df = pd.read_parquet(parquet_path)
+            span_names = set(df["name"].dropna().unique())
+            for expected_span in ["failure_replay_RUN-FAIL-001", "failure_replay_RUN-FAIL-002", "failure_replay_RUN-FAIL-003"]:
+                if expected_span not in span_names:
+                    return False, f"Cited failure span '{expected_span}' not found in traces/phoenix_spans.parquet"
+        except Exception as exc:
+            return False, f"Error validating failure spans in traces parquet: {exc}"
+
+    # Verify citation source_file, chunk, and text_hash integrity
+    sample_dir = REPO_ROOT / "outputs" / "sample_results"
+    if sample_dir.exists():
+        import hashlib
+        for sfile in sample_dir.glob("*.json"):
+            sdata = json.loads(sfile.read_text(encoding="utf-8"))
+            for cit in sdata.get("policy_citations", []):
+                src_file = cit.get("source_file")
+                chunk_id = cit.get("chunk_id")
+                thash = cit.get("text_hash")
+                if src_file:
+                    sf_path = REPO_ROOT / src_file
+                    if not sf_path.exists():
+                        return False, f"Cited source_file {src_file} does not exist"
+                    sf_text = sf_path.read_text(encoding="utf-8")
+                    if chunk_id and f"(Chunk: {chunk_id})" not in sf_text:
+                        return False, f"Cited chunk {chunk_id} not found in {src_file}"
+                    if thash and cit.get("text"):
+                        chash = hashlib.sha256(cit["text"].strip().encode("utf-8")).hexdigest()
+                        if chash != thash:
+                            return False, f"Citation text hash mismatch for {chunk_id}"
+
+    return True, ">=3 failures documented, citations, fixtures, chunks, and trace spans resolve"
 
 
 def verify_ac_09():
@@ -173,9 +234,42 @@ def verify_ac_09():
     gs_file = REPO_ROOT / "reports" / "golden_signals.json"
     dash_png = REPO_ROOT / "reports" / "dashboard.png"
     dash_csv = REPO_ROOT / "reports" / "dashboard_data.csv"
-    if not gs_file.exists() or not dash_png.exists() or not dash_csv.exists():
-        return False, "Missing golden_signals.json, dashboard.png, or dashboard_data.csv"
-    return True, "golden signals + dashboard present and sourced from real spans"
+    traces_file = REPO_ROOT / "traces" / "phoenix_spans.parquet"
+    if not gs_file.exists() or not dash_png.exists() or not dash_csv.exists() or not traces_file.exists():
+        return False, "Missing golden_signals.json, dashboard.png, dashboard_data.csv, or traces parquet"
+
+    # Verify parquet schema and non-emptiness
+    import pandas as pd
+    try:
+        df = pd.read_parquet(traces_file)
+        if len(df) == 0:
+            return False, "traces/phoenix_spans.parquet is empty"
+        required_cols = {"name", "span_kind", "latency_ms"}
+        if not required_cols.issubset(df.columns):
+            return False, f"traces parquet missing required columns: {required_cols - set(df.columns)}"
+    except Exception as exc:
+        return False, f"Failed reading traces parquet: {exc}"
+
+    # Verify dashboard CSV has correct column alignment
+    dash_df = pd.read_csv(dash_csv)
+    if "token_volume" not in dash_df.columns or "cost_usd" not in dash_df.columns:
+        return False, "dashboard_data.csv missing token_volume or cost_usd"
+
+    # Cross-artifact assertion with latest_run.json
+    latest_file = REPO_ROOT / "reports" / "latest_run.json"
+    if latest_file.exists():
+        latest_data = json.loads(latest_file.read_text(encoding="utf-8"))
+        gs_data = json.loads(gs_file.read_text(encoding="utf-8"))
+        if gs_data.get("source_run_id") != latest_data.get("run_id"):
+            return False, f"Golden signals run_id mismatch: {gs_data.get('source_run_id')} vs latest {latest_data.get('run_id')}"
+        if gs_data.get("provider") != latest_data.get("provider"):
+            return False, f"Golden signals provider mismatch: {gs_data.get('provider')} vs latest {latest_data.get('provider')}"
+        if gs_data.get("model") != latest_data.get("model"):
+            return False, f"Golden signals model mismatch: {gs_data.get('model')} vs latest {latest_data.get('model')}"
+        if gs_data.get("token_usage", {}).get("source") != "measured":
+            return False, "Golden signals token_usage.source must be 'measured'"
+
+    return True, "golden signals + dashboard present and verified with authentic measured spans"
 
 
 def verify_ac_10():
@@ -187,33 +281,67 @@ def verify_ac_10():
 
 
 def verify_ac_11():
-    # AC-11: governance pack complete, citations resolve
+    # AC-11: governance pack complete, control citations resolve to committed files
     gov_files = [
         "docs/risk-register.md",
         "docs/model-card.md",
         "docs/compliance.md",
         "docs/output-risk.md",
     ]
+    import re
+    link_pattern = re.compile(r"\[.*?\]\(((\.\./|\./)?(src|tests|config|data|reports)/[^\s\)]+)\)")
     for gf in gov_files:
-        if not (REPO_ROOT / gf).exists():
-            return False, f"Missing {gf}"
-    return True, "governance pack complete, citations resolve"
+        p = REPO_ROOT / gf
+        if not p.exists():
+            return False, f"Missing governance document {gf}"
+        text = p.read_text(encoding="utf-8")
+        # Validate that all cited code and config links in the governance doc actually exist
+        matches = link_pattern.findall(text)
+        for full_match, _, _ in matches:
+            clean_rel = full_match.replace("../", "").replace("./", "")
+            target_file = REPO_ROOT / clean_rel
+            if not target_file.exists():
+                return False, f"Governance document {gf} cites non-existent file: {clean_rel}"
+
+    return True, "governance pack complete and all control citations resolve to verified repository files"
 
 
 def verify_ac_12():
-    # AC-12: eval report + all 3 agent tests pass + non-null DeepEval metrics
+    # AC-12: eval report + all thresholds pass + non-null DeepEval metrics + cross-artifact consistency
     eval_file = REPO_ROOT / "reports" / "eval_report.json"
     if not eval_file.exists():
         return False, "reports/eval_report.json missing"
     data = json.loads(eval_file.read_text(encoding="utf-8"))
+    thresholds = data.get("thresholds", {})
+    failed_thresholds = [k for k, t in thresholds.items() if not t.get("pass")]
+    if failed_thresholds:
+        return False, f"Evaluation report has failing thresholds: {failed_thresholds}"
+
     metrics = data.get("metrics", {})
-    if metrics.get("routing_accuracy", 0) < 0.90:
-        return False, f"routing_accuracy below threshold: {metrics.get('routing_accuracy')}"
     if metrics.get("hallucination_rate") is None or metrics.get("faithfulness") is None:
         return False, "DeepEval metrics (hallucination_rate, faithfulness) are null"
+    if metrics.get("answer_relevance") is None:
+        return False, "DeepEval metric answer_relevance is null"
     if metrics.get("deepeval_cases_evaluated", 0) <= 0:
         return False, "deepeval_cases_evaluated must be > 0"
-    return True, "eval report + DeepEval metrics + all 3 agent tests pass"
+
+    # Cross-artifact assertion with environment.json and latest_run.json
+    env_file = REPO_ROOT / "reports" / "environment.json"
+    latest_file = REPO_ROOT / "reports" / "latest_run.json"
+    if env_file.exists():
+        env_data = json.loads(env_file.read_text(encoding="utf-8"))
+        if data.get("provider") and env_data.get("provider") and data["provider"] != env_data["provider"]:
+            return False, f"Eval report provider mismatch: {data.get('provider')} vs environment {env_data.get('provider')}"
+        if data.get("model") and env_data.get("model") and data["model"] != env_data["model"]:
+            return False, f"Eval report model mismatch: {data.get('model')} vs environment {env_data.get('model')}"
+        if latest_file.exists():
+            latest_data = json.loads(latest_file.read_text(encoding="utf-8"))
+            if env_data.get("provider") != latest_data.get("provider"):
+                return False, f"Environment provider mismatch with latest_run: {env_data.get('provider')} vs {latest_data.get('provider')}"
+            if env_data.get("model") != latest_data.get("model"):
+                return False, f"Environment model mismatch with latest_run: {env_data.get('model')} vs {latest_data.get('model')}"
+
+    return True, "eval report + DeepEval metrics + all evaluation thresholds passed and verified with environment"
 
 
 def verify_nfr_01():

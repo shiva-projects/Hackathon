@@ -1,9 +1,10 @@
 """
 Tests for Log PII Redaction across all committed log files (plan.md Section 6.1 & NFR-05).
 Asserts that sensitive seeded literals across multiple representations and sensitive fields
-are ABSENT from all JSONL log files.
+are ABSENT from all JSONL log files without polluting committed repository logs.
 """
 
+import os
 from pathlib import Path
 import pytest
 from src.observability.unified_logger import log_tool_call, log_agent_action, log_human_review
@@ -17,10 +18,12 @@ SEEDED_PII = {
 }
 
 
-@pytest.fixture(autouse=True)
-def seed_test_log_events():
-    """Generates logged test events with attempted PII leakage to verify redaction at rest."""
-    # Attempt to log raw PII via tool calls, agent actions, and human reviews
+def test_seeded_pii_is_redacted_at_write_time(tmp_path, monkeypatch):
+    """Generates logged test events into isolated test directory to verify redaction at rest."""
+    test_logs = tmp_path / "test_logs"
+    test_logs.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("LOG_DIR", str(test_logs))
+
     log_tool_call(
         agent="test_agent",
         tool_name="verify_income",
@@ -39,7 +42,6 @@ def seed_test_log_events():
         decision="REVIEWED",
         details={"credit_id": SEEDED_PII["credit_id"], "phone": SEEDED_PII["phone"]},
     )
-    # Reviewer notes with seeded account number and email (Section 6.1 untrusted review_reason)
     log_human_review(
         review_id="REV-TEST-PII",
         application_id="APP-TEST-PII",
@@ -49,29 +51,27 @@ def seed_test_log_events():
         review_reason=f"Spoke to applicant at {SEEDED_PII['phone']} and confirmed account {SEEDED_PII['account_number']}.",
     )
 
+    for log_file in test_logs.glob("*.jsonl"):
+        content = log_file.read_text(encoding="utf-8")
+        assert SEEDED_PII["account_number"] not in content, f"Leaked account_number in {log_file.name}"
+        assert SEEDED_PII["credit_id"] not in content, f"Leaked credit_id in {log_file.name}"
+        assert SEEDED_PII["email"] not in content, f"Leaked email in {log_file.name}"
+        assert SEEDED_PII["phone"] not in content, f"Leaked phone in {log_file.name}"
 
-def test_no_raw_pii_in_any_log_file():
+
+def test_no_raw_pii_in_committed_log_files():
     log_files = [
-        "logs/tool_calls.jsonl",
-        "logs/agent_actions.jsonl",
-        "logs/human_reviews.jsonl",
-        "logs/unified_trace.jsonl",
+        Path("logs/tool_calls.jsonl"),
+        Path("logs/agent_actions.jsonl"),
+        Path("logs/human_reviews.jsonl"),
+        Path("logs/unified_trace.jsonl"),
     ]
 
-    for log_file in log_files:
-        path = Path(log_file)
+    for path in log_files:
         if not path.exists():
             continue
         content = path.read_text(encoding="utf-8")
-
-        # Check account number absent
-        assert SEEDED_PII["account_number"] not in content, f"Leaked account_number in {log_file}"
-
-        # Check credit ID absent
-        assert SEEDED_PII["credit_id"] not in content, f"Leaked credit_id in {log_file}"
-
-        # Check email absent
-        assert SEEDED_PII["email"] not in content, f"Leaked email in {log_file}"
-
-        # Check phone absent
-        assert SEEDED_PII["phone"] not in content, f"Leaked phone in {log_file}"
+        assert SEEDED_PII["account_number"] not in content, f"Leaked account_number in {path}"
+        assert SEEDED_PII["credit_id"] not in content, f"Leaked credit_id in {path}"
+        assert SEEDED_PII["email"] not in content, f"Leaked email in {path}"
+        assert SEEDED_PII["phone"] not in content, f"Leaked phone in {path}"

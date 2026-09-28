@@ -72,7 +72,7 @@ class LoanApplication(BaseModel):
         return {
             "application_id": self.application_id,
             "applicant_name": self.applicant_name,
-            "requester_id": self.requester_id or self.applicant_name,
+            "requester_id": self.requester_id,
             "product": self.product,
             "jurisdiction": self.jurisdiction,
             "application_date": self.application_date,

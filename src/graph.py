@@ -8,7 +8,7 @@ import time
 from typing import Dict, Any, Literal
 from langgraph.graph import StateGraph, END
 from src.state import LoanState, assert_state_invariants
-from src.guardrails.input_guard import screen_input
+from src.guardrails.input_guard import screen_input, ascreen_input
 from src.security.authorization import authorize
 from src.agents.intent_classifier import intent_classifier_node
 from src.agents.supervisor import supervisor_router
@@ -27,7 +27,8 @@ async def input_guard_node(state: LoanState) -> LoanState:
     start_t = time.time()
     raw_text = state.get("applicant_raw_text", "")
     app_id = state.get("application_id", "APP-UNKNOWN")
-    guard_result = screen_input(raw_text, current_application_id=app_id)
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
+    guard_result = await ascreen_input(raw_text, current_application_id=app_id, run_id=effective_run_id)
 
     state["routing_history"].append("input_guard")
     state["step_count"] += 1
@@ -46,6 +47,7 @@ async def input_guard_node(state: LoanState) -> LoanState:
         action="screened_input",
         tool="input_guard.screen_input",
         decision="SAFE" if guard_result.is_safe else "REFUSED",
+        run_id=effective_run_id,
         application_id=app_id,
         latency_ms=latency_ms,
         details={
@@ -66,10 +68,11 @@ async def authorization_node(state: LoanState) -> LoanState:
     if state.get("request_status") == "REFUSED":
         return state
 
-    requester_id = state.get("actor_id") or state.get("applicant_facts", {}).get("requester_id") or state.get("application_id", "")
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
+    requester_id = state.get("actor_id") or state.get("applicant_facts", {}).get("requester_id") or "UNKNOWN_REQUESTER"
     app_id = state.get("application_id", "")
 
-    auth_status = authorize(requester_id, app_id, run_id=state.get("session_id", "default_run"))
+    auth_status = authorize(requester_id, app_id, run_id=effective_run_id)
     if auth_status != "AUTHORIZED":
         state["request_status"] = "REFUSED"
         state["refusal_reason"] = "AUTHORIZATION_DENIED"
@@ -77,6 +80,15 @@ async def authorization_node(state: LoanState) -> LoanState:
         state["ai_recommendation"] = None
         state["final_decision"] = None
         state["rationale"] = f"Access denied: Requester '{requester_id}' is unauthorized for application '{app_id}'."
+    else:
+        # AC-05: Recall long-term memory for returning applicant/application
+        from src.memory.long_term import long_term_memory
+        app_facts = state.get("applicant_facts", {})
+        applicant_key = app_facts.get("applicant_id") or app_facts.get("applicant_name") or app_id
+        recalled = long_term_memory.get_facts(applicant_key, "profile")
+        if not recalled and applicant_key != app_id:
+            recalled = long_term_memory.get_facts(app_id, "profile")
+        state["recalled_facts"] = recalled
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
     log_agent_action(
@@ -84,6 +96,7 @@ async def authorization_node(state: LoanState) -> LoanState:
         action="access_authorization",
         tool="authorization.authorize",
         decision=auth_status,
+        run_id=effective_run_id,
         application_id=app_id,
         latency_ms=latency_ms,
         details={"requester_id": requester_id, "auth_status": auth_status},
@@ -104,6 +117,7 @@ async def supervisor_node(state: LoanState) -> LoanState:
     state["routing_history"].append("supervisor")
     state["step_count"] += 1
 
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
 
     log_agent_action(
@@ -111,6 +125,7 @@ async def supervisor_node(state: LoanState) -> LoanState:
         action="supervisor_dispatch",
         tool="supervisor_router",
         decision=state.get("intent", "new_application"),
+        run_id=effective_run_id,
         application_id=state.get("application_id"),
         latency_ms=latency_ms,
         details={"step_count": state.get("step_count"), "intent": state.get("intent")},
@@ -167,11 +182,13 @@ async def loop_guard_terminal_node(state: LoanState) -> LoanState:
     state["routing_history"].append("loop_guard_terminal")
     state["step_count"] += 1
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
     log_agent_action(
         actor="loop_guard",
         action="recursion_limit_exceeded",
         tool="supervisor.loop_guard",
         decision="UNABLE_TO_COMPLETE",
+        run_id=effective_run_id,
         application_id=state.get("application_id"),
         latency_ms=latency_ms,
         details={"step_count": state.get("step_count"), "unable_reason": "RECURSION_LIMIT_EXCEEDED"},

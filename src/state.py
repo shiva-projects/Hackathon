@@ -6,10 +6,11 @@ Frozen architecture per plan.md v7.
 from typing import TypedDict, Optional, List, Dict, Any, Literal
 
 
-GEMINI_FALLBACK_RATIONALE = (
+FALLBACK_RATIONALE = (
     "Rationale generation was unavailable. The recommendation below was produced "
     "entirely from the selected policy and deterministic underwriting rules."
 )
+GEMINI_FALLBACK_RATIONALE = FALLBACK_RATIONALE
 
 VALID_INTENTS = {
     "new_application",
@@ -29,7 +30,9 @@ VALID_FINAL_DECISIONS = {"APPROVE", "REFER", "DECLINE", None}
 
 class LoanState(TypedDict):
     actor_id: Optional[str]            # requester / loan-officer identifier (defaults to None)
+    actor_role: Optional[str]          # role: loan_officer, senior_underwriter, applicant
     application_id: str
+    run_id: Optional[str]              # top-level pipeline run ID (e.g. RUN-20260928182920)
     applicant_raw_text: str            # untrusted, quarantined, never used as instructions
     applicant_facts: Dict[str, Any]    # extracted + schema-validated
     session_id: str
@@ -52,6 +55,9 @@ class LoanState(TypedDict):
     final_decision: Optional[str]      # null until a human sets it — NEVER set by the agent
     review_id: Optional[str]           # links to the record in logs/human_reviews.jsonl
     rationale: str                     # LLM explains the deterministic result; does not invent it
+    recalled_facts: Optional[Dict[str, Any]]  # prior verified facts from long-term memory
+    _langmem_tool: Optional[str]       # tool name used for memory management
+    _rule_results: Optional[List[Dict[str, Any]]]  # intermediate rule evaluations
     routing_history: List[str]
     step_count: int
 
@@ -63,11 +69,15 @@ def create_initial_state(
     session_id: str = "default-session",
     intent: str = "new_application",
     actor_id: Optional[str] = None,
+    actor_role: Optional[str] = None,
+    run_id: Optional[str] = None,
 ) -> LoanState:
     """Helper to initialize a clean LoanState."""
     return LoanState(
         actor_id=actor_id,
+        actor_role=actor_role,
         application_id=application_id,
+        run_id=run_id,
         applicant_raw_text=applicant_raw_text,
         applicant_facts=applicant_facts or {},
         session_id=session_id,
@@ -89,6 +99,9 @@ def create_initial_state(
         final_decision=None,
         review_id=None,
         rationale="",
+        recalled_facts={},
+        _langmem_tool=None,
+        _rule_results=[],
         routing_history=[],
         step_count=0,
     )

@@ -1,9 +1,9 @@
 {
   "providers": {
     "gemini": {
-      "model": "gemini-2.0-flash",
-      "input_price_per_million": 0.10,
-      "output_price_per_million": 0.40,
+      "model": "gemini-3.7-flash",
+      "input_price_per_million": 0.75,
+      "output_price_per_million": 3.75,
       "currency": "USD",
       "pricing_source": "https://ai.google.dev/pricing",
       "pricing_checked_at": "2026-09-26"
@@ -11,16 +11,30 @@
     "groq": {
       "model": "openai/gpt-oss-120b",
       "fallback_model": "openai/gpt-oss-20b",
-      "input_price_per_million": 0.29,
-      "output_price_per_million": 0.59,
+      "input_price_per_million": 0.15,
+      "output_price_per_million": 0.60,
+      "fallback_input_price_per_million": 0.075,
+      "fallback_output_price_per_million": 0.30,
       "currency": "USD",
       "pricing_source": "https://console.groq.com/docs/models",
       "pricing_checked_at": "2026-09-26"
     }
   },
-  "model": "gemini-2.0-flash",
-  "input_price_per_million": 0.10,
-  "output_price_per_million": 0.40,
-  "pricing_source": "https://ai.google.dev/pricing",
-  "pricing_checked_at": "2026-09-26"
+  "models": {
+    "openai/gpt-oss-120b": {
+      "input_price_per_million": 0.15,
+      "output_price_per_million": 0.60,
+      "currency": "USD"
+    },
+    "openai/gpt-oss-20b": {
+      "input_price_per_million": 0.075,
+      "output_price_per_million": 0.30,
+      "currency": "USD"
+    },
+    "gemini-3.7-flash": {
+      "input_price_per_million": 0.75,
+      "output_price_per_million": 3.75,
+      "currency": "USD"
+    }
+  }
 }

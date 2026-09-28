@@ -87,17 +87,69 @@ def validate_rationale_numeric_consistency(
     return True, "Consistent with deterministic findings"
 
 
+def enforce_currency_consistency(text: str, expected_currency: str = "INR") -> str:
+    """Replaces mismatched currency symbols (e.g. $ or £ when currency is INR)."""
+    curr = (expected_currency or "INR").upper()
+    if curr == "INR":
+        text = re.sub(r"\$(\s*\d)", r"₹\1", text)
+        text = re.sub(r"£(\s*\d)", r"₹\1", text)
+    elif curr == "GBP":
+        text = re.sub(r"\$(\s*\d)", r"£\1", text)
+        text = re.sub(r"₹(\s*\d)", r"£\1", text)
+    elif curr == "USD":
+        text = re.sub(r"₹(\s*\d)", r"$\1", text)
+        text = re.sub(r"£(\s*\d)", r"$\1", text)
+    return text
+
+
+def build_deterministic_rationale(
+    recommendation: Optional[str],
+    dti: Optional[Decimal] = None,
+    currency: str = "INR",
+) -> str:
+    """
+    Constructs an authoritative deterministic rationale when LLM prose contradicts calculations.
+    Ensures contradictory output is never preserved (Fail-Closed, Code decides, LLM explains).
+    """
+    rec_str = (recommendation or "REFER").upper()
+    dti_str = f"{float(dti):.1%}" if dti is not None else "evaluated"
+
+    if rec_str == "APPROVE":
+        return (
+            f"AI recommendation: APPROVE (Advisory). "
+            f"The application satisfies all policy thresholds with a verified DTI of {dti_str}. "
+            f"Deterministic evaluation indicates the loan meets affordability criteria."
+        )
+    elif rec_str == "DECLINE":
+        return (
+            f"AI recommendation: DECLINE (Advisory). "
+            f"The application does not satisfy underwriting thresholds, with a calculated DTI of {dti_str}. "
+            f"Deterministic policy rules prevent automated approval."
+        )
+    else:
+        return (
+            f"AI recommendation: REFER (Advisory). "
+            f"Application flagged for underwriter review based on calculated DTI of {dti_str}. "
+            f"Deterministic evaluation requires human assessment."
+        )
+
+
 def screen_output(
     rationale: str,
     ai_recommendation: Optional[str],
     seeded_pii_literals: Optional[List[str]] = None,
     dti: Optional[Decimal] = None,
+    expected_currency: str = "INR",
+    run_id: str = "default_run",
+    span_id: Optional[str] = None,
 ) -> str:
     """
     Full output guardrail pipeline:
     1. Redacts PII and sensitive numeric representations.
     2. Rewrites any authoritative 'final decision' wording into advisory recommendation language.
     3. Enforces numeric and recommendation consistency against deterministic outputs.
+       If contradictory, fails closed: replaces contradictory prose with build_deterministic_rationale.
+    4. Enforces jurisdiction currency consistency.
     """
     # Step 1: PII Scrubbing
     sanitized = sanitize_text(rationale)
@@ -107,13 +159,34 @@ def screen_output(
     # Step 2: Language Enforcement
     sanitized = enforce_recommendation_language(sanitized, ai_recommendation)
 
-    # Step 3: Numeric & Recommendation Consistency Validation
+    # Step 3: Currency Enforcement
+    sanitized = enforce_currency_consistency(sanitized, expected_currency)
+
+    # Step 4: Numeric & Recommendation Consistency Validation (Fail-Closed)
     is_valid, reason = validate_rationale_numeric_consistency(sanitized, ai_recommendation, dti)
     if not is_valid:
-        # Append advisory correction note ensuring applicant-facing prose never misinforms
-        rec_str = ai_recommendation or "REFER"
-        dti_str = f"{float(dti):.1%}" if dti is not None else "evaluated"
-        sanitized = f"{sanitized}\n[Correction: Official deterministic assessment is {rec_str} based on calculated DTI of {dti_str}]."
+        from src.observability.unified_logger import log_agent_action
+        log_agent_action(
+            actor="output_guard",
+            action="blocked_and_replaced",
+            tool=None,
+            decision="CONTRADICTION_REPLACED",
+            run_id=run_id,
+            details={
+                "guardrail": "numeric_consistency",
+                "action": "blocked_and_replaced",
+                "reason": reason,
+                "run_id": run_id,
+                "span_id": span_id,
+                "ai_recommendation": ai_recommendation,
+                "dti": str(dti) if dti is not None else None,
+            },
+        )
+        return build_deterministic_rationale(
+            recommendation=ai_recommendation,
+            dti=dti,
+            currency=expected_currency,
+        )
 
     return sanitized
 

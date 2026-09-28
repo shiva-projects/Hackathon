@@ -35,8 +35,10 @@ def test_positive_verified_fact_persistence(clean_memory_store):
     assert recalled_facts.get("employment") == "salaried"
 
     # Write committed output to logs/memory_test.log per rubric
-    log_path = Path("logs/memory_test.log")
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+    import os
+    log_dir = Path(os.environ.get("LOG_DIR", "logs"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "memory_test.log"
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"[{datetime.now(timezone.utc).isoformat()}] POSITIVE_RECALL_TEST PASS: APP-001 employment=salaried successfully recalled.\n")
 
@@ -66,7 +68,10 @@ def test_negative_adversarial_memory_rejection(clean_memory_store):
     stored = clean_memory_store.get_facts("APP-001", "profile")
     assert len(stored) == 0
 
-    log_path = Path("logs/memory_test.log")
+    import os
+    log_dir = Path(os.environ.get("LOG_DIR", "logs"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "memory_test.log"
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"[{datetime.now(timezone.utc).isoformat()}] NEGATIVE_INJECTION_TEST PASS: Adversarial text rejected from memory.\n")
 
@@ -83,3 +88,29 @@ def test_langmem_integration(clean_memory_store):
     item = clean_memory_store.langgraph_store.get(("APP-001", "profile"), "employment")
     assert item is not None
     assert item.value == {"fact": "salaried"}
+
+
+def test_cross_session_verified_fact_recall(tmp_path):
+    """
+    Validates strict cross-session semantic memory persistence and recall:
+    Session A: Writes verified attributes for applicant APP-CS-001.
+    Instance exit: Session A store object discarded.
+    Session B: Brand new store instance reading from the persistent storage path.
+    Asserts: Exact verified fact recall across distinct sessions.
+    """
+    store_file = tmp_path / "cross_session_memory.json"
+
+    # Session A: Write verified facts
+    session_a = LongTermMemoryStore(str(store_file))
+    ok1 = session_a.write_fact("APP-CS-001", "profile", "employment_type", "salaried")
+    ok2 = session_a.write_fact("APP-CS-001", "profile", "employer_name", "Acme Financial Services")
+    assert ok1 is True
+    assert ok2 is True
+    del session_a
+
+    # Session B: Brand new instance simulating new session/process start
+    session_b = LongTermMemoryStore(str(store_file))
+    recalled = session_b.get_facts("APP-CS-001", "profile")
+    assert recalled.get("employment_type") == "salaried"
+    assert recalled.get("employer_name") == "Acme Financial Services"
+

@@ -178,13 +178,46 @@ def evaluate_policy_rules(
                     "message": f"Tenure {tenure_months} months is below minimum {threshold_int}",
                 })
 
+        else:
+            # Unknown rule_type must fail closed (plan.md Section 4.4 & compliance regulations)
+            rule_results.append(
+                RuleEvaluationResult(
+                    rule_id=rule_id,
+                    rule_type=rule_type or "unknown",
+                    passed=False,
+                    threshold_value=str(raw_val),
+                    actual_value=None,
+                    operator=operator,
+                    message=f"Unknown or unsupported rule_type '{rule_type}' cannot be verified",
+                    is_mandatory_eligibility=True,
+                    requires_human_review=True,
+                )
+            )
+            risk_flags.append({
+                "rule_id": rule_id,
+                "flag": "UNKNOWN_RULE_TYPE",
+                "severity": "CRITICAL",
+                "message": f"Policy rule [{rule_id}] has unknown rule_type '{rule_type}' - failing closed",
+            })
+
     # Additional deterministic risk screening
-    if employment == "unemployed":
+    if employment in {"unemployed", "jobless", "not_employed", "un-employed", "none"}:
         risk_flags.append({
             "rule_id": "SYS-RISK-01",
             "flag": "UNEMPLOYMENT_FLAG",
             "severity": "CRITICAL",
             "message": "Applicant is currently unemployed",
+        })
+
+    # Currency consistency check
+    app_currency = str(applicant_facts.get("currency", "INR")).upper()
+    jurisdiction = str(applicant_facts.get("jurisdiction", "IN")).upper()
+    if jurisdiction == "IN" and app_currency not in {"INR", ""}:
+        risk_flags.append({
+            "rule_id": "SYS-RISK-CURRENCY",
+            "flag": "CURRENCY_MISMATCH",
+            "severity": "HIGH",
+            "message": f"Currency {app_currency} does not match jurisdiction {jurisdiction} (expected INR)",
         })
 
     return rule_results, risk_flags

@@ -54,10 +54,20 @@ def _get_chroma_collection(collection_name: str = "policy_corpus"):
         return None
 
 
+class CorpusIntegrityError(RuntimeError):
+    """Raised when policy chunk tampering or hash mismatch is detected."""
+    pass
+
+
 def extract_rule_id(chunk_text: str) -> str:
     import re
     m = re.search(r"\b(PL-[\w\-]+|UK-MORT-[\w\-]+)\b", chunk_text)
     return m.group(1) if m else "PL-GENERAL"
+
+
+def extract_all_rule_ids(chunk_text: str) -> List[str]:
+    import re
+    return re.findall(r"\b(PL-[\w\-]+|UK-MORT-[\w\-]+)\b", chunk_text)
 
 
 def retrieve_policy_chunks(
@@ -145,10 +155,21 @@ def retrieve_policy_chunks(
                     cos_sim = float(np.dot(q_emb, d_emb) / (np.linalg.norm(q_emb) * np.linalg.norm(d_emb) + 1e-9))
                     scored_chunks.append((c, cos_sim))
         except Exception as e:
-            # Fallback to lexical token match if vector runtime encounters issue
-            print(f"Vector search fallback to token overlap: {e}")
+            fallback_reason = str(e)
             scored_chunks = []
-    
+            from src.observability.unified_logger import log_event
+            log_event(
+                "rag_degraded_mode",
+                "logs/agent_actions.jsonl",
+                {
+                    "event": "rag_degraded_mode",
+                    "primary": "chromadb",
+                    "fallback": "lexical",
+                    "reason": fallback_reason,
+                    "run_id": run_id,
+                },
+            )
+
     # Fallback to token overlap if vector scoring was empty
     if not scored_chunks:
         import re
@@ -158,28 +179,49 @@ def retrieve_policy_chunks(
             overlap = len(q_tokens.intersection(c_tokens))
             scored_chunks.append((c, float(overlap)))
 
+        # Enforce minimum relevance score for lexical retrieval (do not accept zero-overlap chunks)
+        MIN_RELEVANCE_SCORE = 1.0
+        scored_chunks = [(c, s) for c, s in scored_chunks if s >= MIN_RELEVANCE_SCORE]
+        if not scored_chunks:
+            return []
+
     # Sort descending by score
     scored_chunks.sort(key=lambda x: x[1], reverse=True)
     top_candidates = scored_chunks[:top_k]
 
-    # 3. Hash integrity verification against disk files
+    # 3. Hash integrity verification against disk files and manifest
     results = []
     for chunk, score in top_candidates:
-        src_file = Path(chunk["source_file"])
-        actual_hash = chunk.get("text_hash")
+        src_file = Path(chunk.get("source_file", ""))
+        expected_hash = chunk.get("text_hash")
+        chunk_text = chunk.get("text", "")
+
+        computed_hash = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
+        if expected_hash and computed_hash != expected_hash:
+            raise CorpusIntegrityError(
+                f"Corpus integrity violation: chunk {chunk.get('chunk_id')} hash mismatch. "
+                f"Expected {expected_hash}, computed {computed_hash}."
+            )
+
         if src_file.exists():
             file_text = src_file.read_text(encoding="utf-8")
-            if chunk["text"] in file_text:
-                actual_hash = hashlib.sha256(chunk["text"].encode("utf-8")).hexdigest()
+            if chunk_text not in file_text:
+                raise CorpusIntegrityError(
+                    f"Corpus integrity violation: chunk {chunk.get('chunk_id')} text not found in source file {src_file}."
+                )
+
+        rule_ids = extract_all_rule_ids(chunk_text)
+        primary_rule_id = rule_ids[0] if rule_ids else extract_rule_id(chunk_text)
 
         results.append({
             "policy_id": chunk["policy_id"],
             "version": chunk["version"],
-            "rule_id": extract_rule_id(chunk.get("text", "")),
+            "rule_id": primary_rule_id,
+            "rule_ids": rule_ids,
             "source_file": chunk["source_file"],
             "chunk_id": chunk["chunk_id"],
-            "text_hash": actual_hash,
-            "text": chunk["text"],
+            "text_hash": expected_hash or computed_hash,
+            "text": chunk_text,
             "score": round(score, 4),
         })
 

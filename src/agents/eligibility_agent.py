@@ -48,12 +48,14 @@ async def aeligibility_agent_node(state: LoanState) -> LoanState:
     state["step_count"] += 1
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
 
     log_agent_action(
         actor="eligibility_agent",
         action="computed_affordability",
         tool="mcp.compute_affordability",
         decision="BREACH" if aff_res.get("breach") else "PASS",
+        run_id=effective_run_id,
         application_id=state.get("application_id"),
         latency_ms=latency_ms,
         details={"dti": aff_res.get("dti"), "breach": aff_res.get("breach")},

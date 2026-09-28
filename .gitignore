@@ -1,15 +1,42 @@
-# Environment secrets
+# ============================================================
+# SECRETS / CREDENTIALS
+# ============================================================
+
 .env
 .env.local
+.env.*.local
+
+# Private keys / certificates / credentials
 *.key
 *.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secret
+*.secrets
 
-# Python artifacts
+# Cloud / service credentials
+credentials.json
+service-account.json
+service_account.json
+secrets.json
+
+
+# ============================================================
+# PYTHON CACHE / COMPILED ARTIFACTS
+# ============================================================
+
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
 *.so
+
 .Python
+
+# Python build/package artifacts
 build/
 develop-eggs/
 dist/
@@ -22,39 +49,222 @@ parts/
 sdist/
 var/
 wheels/
+
 *.egg-info/
 .installed.cfg
 *.egg
-*.zip
+MANIFEST
 
-# Virtual environments
+
+# ============================================================
+# VIRTUAL ENVIRONMENTS
+# ============================================================
+
 venv/
 .venv/
 env/
 ENV/
+.venv*/
+venv*/
+env*/
 
-# Testing & Coverage
+
+# ============================================================
+# TESTING / COVERAGE / QUALITY TOOL CACHE
+# ============================================================
+
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .nox/
 
-# Database & persistence files
+.mypy_cache/
+.pyre/
+.pytype/
+.pyright/
+.ruff_cache/
+.hypothesis/
+
+# Test/debug output
+test-results/
+pytest-results/
+coverage.xml
+
+
+# ============================================================
+# DATABASE / LOCAL PERSISTENCE / RUNTIME STATE
+# ============================================================
+
 *.sqlite
 *.sqlite3
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
 *.db
+
+# Vector DB / local retrieval stores
 .chroma/
 chroma_db/
 chroma_data/
 
-# IDE & OS
+# Local application state
+.local/
+.runtime/
+tmp/
+temp/
+
+
+# ============================================================
+# AI / EVALUATION TOOL CACHES
+# ============================================================
+
+.deepeval/
+.deepeval_cache/
+.cache/
+.cache-*/
+
+# Local model / framework caches
+.huggingface/
+.transformers/
+.sentence_transformers/
+
+
+# ============================================================
+# LOGS / DEBUG OUTPUT
+# ============================================================
+
+# Generic local logs only
+*.log
+*.log.*
+*.tmp
+
+# IMPORTANT:
+# Required committed evidence is explicitly un-ignored below.
+!logs/
+!logs/*.jsonl
+!logs/*.json
+!logs/*.txt
+
+# Required test/memory evidence
+!logs/memory_test.log
+
+
+# ============================================================
+# IDE / EDITOR
+# ============================================================
+
 .vscode/
 .idea/
 *.swp
 *.swo
+*.swn
+*.bak
+*.orig
+*~
+.project
+.classpath
+.settings/
+
+
+# ============================================================
+# JUPYTER / NOTEBOOK
+# ============================================================
+
+.ipynb_checkpoints/
+
+
+# ============================================================
+# OS FILES
+# ============================================================
+
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+
+
+# ============================================================
+# TEMPORARY / BACKUP FILES
+# ============================================================
+
+*.temp
+*.temporary
+*.old
+*.orig
+*.rej
+*.patch~
+*.swp
+*.swo
+
+# Editor backup files
+*#
+.#*
+
+
+# ============================================================
+# LOCAL CONFIG / MACHINE-SPECIFIC FILES
+# ============================================================
+
+*.local
+*.local.json
+*.local.yaml
+*.local.yml
+
+# BUT keep explicitly shareable examples/templates
+!.env.example
+!.env.template
+!.env.sample
+
+
+# ============================================================
+# SUBMISSION ARCHIVES
+# ============================================================
+
+# Don't accidentally commit generated submission ZIPs.
+*.zip
+
+
+# ============================================================
+# PROJECT-SPECIFIC RUNTIME ARTIFACTS
+# ============================================================
+
+# # SQLite checkpoint runtime files
+# data/checkpoints.sqlite
+# data/checkpoints.sqlite-shm
+# data/checkpoints.sqlite-wal
+
+# Local generated checkpoint/runtime state
+# data/runtime/
+# data/tmp/
+
+# Local MCP/runtime state
+# mcp_server/__pycache__/
+
+
+# ============================================================
+# DO NOT IGNORE RUBRIC EVIDENCE
+# ============================================================
+#
+# The following are intentionally NOT ignored:
+#
+# src/
+# tests/
+# docs/
+# reports/
+# traces/
+# logs/
+# data/policy_corpus/
+# data/sample_applications/
+# data/failure_cases/
+# mcp_server/
+# scripts/
+#
+# These contain implementation and/or committed evidence required
+# by the hackathon rubric.

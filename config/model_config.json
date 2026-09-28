@@ -4,11 +4,11 @@
     "gemini": {
       "env_key": "GEMINI_API_KEY",
       "sdk": "google-generativeai",
-      "chat_model": "gemini-2.0-flash",
+      "chat_model": "gemini-3.7-flash",
       "temperature": 0,
       "pricing": {
-        "input_per_million": 0.10,
-        "output_per_million": 0.40,
+        "input_per_million": 0.75,
+        "output_per_million": 3.75,
         "currency": "USD",
         "pricing_source": "https://ai.google.dev/pricing",
         "pricing_checked_at": "2026-09-26"
@@ -22,16 +22,40 @@
       "fallback_chat_model": "openai/gpt-oss-20b",
       "temperature": 0,
       "pricing": {
-        "input_per_million": 0.29,
-        "output_per_million": 0.59,
+        "input_per_million": 0.15,
+        "output_per_million": 0.60,
+        "currency": "USD",
+        "pricing_source": "https://console.groq.com/docs/models",
+        "pricing_checked_at": "2026-09-26"
+      },
+      "fallback_pricing": {
+        "input_per_million": 0.075,
+        "output_per_million": 0.30,
         "currency": "USD",
         "pricing_source": "https://console.groq.com/docs/models",
         "pricing_checked_at": "2026-09-26"
       }
     }
   },
+  "model_pricing": {
+    "openai/gpt-oss-120b": {
+      "input_per_million": 0.15,
+      "output_per_million": 0.60,
+      "currency": "USD"
+    },
+    "openai/gpt-oss-20b": {
+      "input_per_million": 0.075,
+      "output_per_million": 0.30,
+      "currency": "USD"
+    },
+    "gemini-3.7-flash": {
+      "input_per_million": 0.75,
+      "output_per_million": 3.75,
+      "currency": "USD"
+    }
+  },
   "retry_before_provider_switch": {
     "max_attempts_per_provider": 2,
-    "timeout_seconds": 20
+    "timeout_seconds": 60
   }
 }

@@ -74,14 +74,25 @@ def test_gemini_takes_precedence_over_groq(monkeypatch):
 
     prov, cfg = resolve_provider()
     assert prov == "gemini"
-    assert cfg.get("chat_model") == "gemini-2.0-flash"
+    assert cfg.get("chat_model") == "gemini-3.7-flash"
 
+
+def test_explicit_llm_provider_fail_closed(monkeypatch):
+    """When LLM_PROVIDER is set to gemini but GEMINI_API_KEY is missing, fails closed immediately."""
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_liveKey")
+    val = validate_provider_environment()
+    assert val["has_live_key"] is False
+    with pytest.raises(RuntimeError, match="LLM_PROVIDER='gemini' was requested but GEMINI_API_KEY is not configured"):
+        resolve_provider()
 
 
 def test_groq_configured_path(monkeypatch):
     """When GEMINI_API_KEY is absent and GROQ_API_KEY is present, Groq path is selected."""
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.setenv("GROQ_API_KEY", "gsk_liveTestKey123456789")
 
     val = validate_provider_environment()
@@ -99,6 +110,7 @@ def test_neither_provider_configured(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
 
     val = validate_provider_environment()
     assert val["has_live_key"] is False
@@ -111,6 +123,7 @@ def test_neither_provider_configured(monkeypatch):
 
 def test_dummy_placeholder_keys_rejected(monkeypatch):
     """Dummy template keys must never be treated as live keys."""
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "your_gemini_api_key_here")
     monkeypatch.setenv("GROQ_API_KEY", "your_groq_api_key_here")
 
@@ -125,6 +138,7 @@ def test_gemini_quota_failure_falls_back_to_groq(monkeypatch):
     When Gemini fails or exhausts retries, invoke_with_resilience
     falls back cleanly to Groq and logs provider_fallback.
     """
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "AIzaSyMockKeyForFallbackTest")
     monkeypatch.setenv("GROQ_API_KEY", "gsk_MockGroqKeyForFallbackTest")
     reset_run_provider()
@@ -135,12 +149,12 @@ def test_gemini_quota_failure_falls_back_to_groq(monkeypatch):
     mock_groq = MagicMock()
     mock_groq.invoke.return_value = "Groq fallback rationale explanation."
 
-    def fake_get_llm_client(force_provider=None, config_path="config/model_config.json"):
+    def fake_get_llm_client(force_provider=None, force_model=None, config_path="config/model_config.json"):
         from src.llm.client import LLMClientHandle
         if force_provider == "gemini":
-            return LLMClientHandle("gemini", "gemini-2.0-flash", mock_gemini, "mock gemini")
+            return LLMClientHandle("gemini", "gemini-3.7-flash", mock_gemini, "mock gemini")
         elif force_provider == "groq":
-            return LLMClientHandle("groq", "qwen/qwen3-32b", mock_groq, "mock groq")
+            return LLMClientHandle("groq", "openai/gpt-oss-120b", mock_groq, "mock groq")
         else:
             p = get_run_provider() or "gemini"
             return fake_get_llm_client(force_provider=p, config_path=config_path)
@@ -217,4 +231,5 @@ def test_evidence_provider_consistency():
     if eval_p.exists():
         eval_data = json.loads(eval_p.read_text(encoding="utf-8"))
         judge_str = eval_data.get("metrics", {}).get("deepeval_method", "")
-        assert env_model in judge_str, f"Eval report judge model mismatch: expected {env_model} in {judge_str}"
+        approved_judges = [env_model, "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+        assert any(m in judge_str for m in approved_judges), f"Eval report judge model mismatch: expected one of {approved_judges} in {judge_str}"

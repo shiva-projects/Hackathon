@@ -55,6 +55,7 @@ async def agenerate_llm_rationale(
     policy_version: str,
     citations: List[Dict[str, Any]],
     run_id: str = "default_run",
+    currency: str = "INR",
 ) -> str:
     """
     Asynchronously invokes the resolved LLM provider to explain the deterministic decision in prose.
@@ -76,6 +77,8 @@ async def agenerate_llm_rationale(
             dti=affordability.dti,
             breach=affordability.breach,
             reasons=reasons,
+            citations=citations,
+            currency=currency,
         )
         return await ainvoke_with_resilience(prompt, run_id=run_id)
     except Exception as e:
@@ -122,13 +125,17 @@ async def adecision_agent_node(state: LoanState) -> LoanState:
     # 2. Async Rationale generation explaining the decision
     policy_ver = state.get("policy_selected", {}).get("version", "v2.0")
     citations = state.get("policy_citations", [])
+    app_facts = state.get("applicant_facts", {})
+    currency = app_facts.get("currency", "INR")
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
     raw_rationale = await agenerate_llm_rationale(
         recommendation=decision.ai_recommendation or "REFER",
         affordability=affordability,
         reasons=decision.reasons,
         policy_version=policy_ver,
         citations=citations,
-        run_id=state.get("session_id", "default_run"),
+        run_id=effective_run_id,
+        currency=currency,
     )
 
     # 3. Output Guardrail (PII scrub + recommendation language + numeric consistency enforcement)
@@ -136,49 +143,46 @@ async def adecision_agent_node(state: LoanState) -> LoanState:
         rationale=raw_rationale,
         ai_recommendation=decision.ai_recommendation,
         dti=affordability.dti,
+        expected_currency=currency,
+        run_id=effective_run_id,
     )
     state["rationale"] = clean_rationale
     state["routing_history"].append("decision_node")
     state["step_count"] += 1
 
-    # 4. Long-term memory integration: LangMem manage_memory tool binding and verified attribute storage
+    # 4. Long-term memory integration: LangMem manage_memory tool invocation and verified attribute storage
     from src.memory.long_term import long_term_memory
     app_id = state.get("application_id", "APP-UNKNOWN")
-    langmem_tool = long_term_memory.get_langmem_tool(app_id, "profile")
+    applicant_facts = state.get("applicant_facts", {})
+    applicant_id = applicant_facts.get("applicant_id") or applicant_facts.get("requester_id") or app_id
+
+    langmem_tool = long_term_memory.get_langmem_tool(applicant_id, "profile")
     if langmem_tool is not None:
         state["_langmem_tool"] = getattr(langmem_tool, "name", "manage_memory")
+        t_tool_0 = time.perf_counter()
+        invocation_result = langmem_tool.invoke({"applicant_id": applicant_id, "namespace": "profile"})
+        t_tool_lat = round((time.perf_counter() - t_tool_0) * 1000.0, 2)
         log_tool_call(
             agent="decision_agent",
             tool_name=getattr(langmem_tool, "name", "manage_memory"),
-            args={"namespace": f"{app_id}:profile"},
-            result={"status": "bound"},
-            latency_ms=0.1,
+            args={"applicant_id": applicant_id, "namespace": "profile"},
+            result={"status": "invoked"},
+            latency_ms=max(0.2, t_tool_lat),
             status="success",
             application_id=app_id,
-            run_id=state.get("session_id", "default_run"),
+            run_id=effective_run_id,
         )
-        # Exercise the LangMem manage_memory tool to decide what to remember
-        invocation_result = langmem_tool.invoke(state.get("applicant_facts", {}))
-        log_tool_call(
-            agent="decision_agent",
-            tool_name=getattr(langmem_tool, "name", "manage_memory"),
-            args={"facts": state.get("applicant_facts", {})},
-            result={"invocation": invocation_result},
-            latency_ms=0.1,
-            status="success",
-            application_id=app_id,
-            run_id=state.get("session_id", "default_run"),
-        )
+
     # Persist verified applicant attributes per memory write policy
-    applicant_facts = state.get("applicant_facts", {})
-    if applicant_facts.get("employment_type"):
-        long_term_memory.write_fact(app_id, "profile", "employment_type", applicant_facts["employment_type"])
-    if applicant_facts.get("employer_name"):
-        long_term_memory.write_fact(app_id, "profile", "employer_name", applicant_facts["employer_name"])
-    elif applicant_facts.get("employer"):
-        long_term_memory.write_fact(app_id, "profile", "employer_name", applicant_facts["employer"])
-    if applicant_facts.get("preferred_currency"):
-        long_term_memory.write_fact(app_id, "profile", "preferred_currency", applicant_facts["preferred_currency"])
+    employment = applicant_facts.get("employment_type") or applicant_facts.get("employment")
+    if employment:
+        long_term_memory.write_fact(applicant_id, "profile", "employment_type", employment)
+    employer = applicant_facts.get("employer_name") or applicant_facts.get("employer")
+    if employer:
+        long_term_memory.write_fact(applicant_id, "profile", "employer_name", employer)
+    currency = applicant_facts.get("preferred_currency") or applicant_facts.get("currency")
+    if currency:
+        long_term_memory.write_fact(applicant_id, "profile", "preferred_currency", currency)
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
 

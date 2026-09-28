@@ -24,6 +24,8 @@ def calculate_monthly_gross_income(income_amount: Union[Decimal, float, int], in
     monthly_gross_income = income_amount / 12 if income_period == "annual" else income_amount
     """
     amt = to_decimal(income_amount)
+    if amt <= Decimal("0"):
+        raise ValueError(f"Income amount must be greater than zero; got {amt}")
     if income_period.lower() == "annual":
         return (amt / Decimal("12")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return amt.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -37,6 +39,8 @@ def calculate_monthly_obligations(existing_obligations: List[Dict[str, Any]]) ->
     total = Decimal("0.00")
     for ob in existing_obligations:
         amt = to_decimal(ob.get("amount", 0))
+        if amt < Decimal("0"):
+            raise ValueError(f"Obligation amount cannot be negative; got {amt}")
         period = ob.get("period", "monthly").lower()
         if period == "annual":
             monthly = (amt / Decimal("12")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

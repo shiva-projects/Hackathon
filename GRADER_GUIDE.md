@@ -3,17 +3,17 @@
 
 Welcome, evaluator! This repository contains a fully working, observable, and governed LangGraph multi-agent copilot. Every claim in this repository is backed by committed code and machine-generated artifacts under the **Evidence-in-Repo Rule**.
 
-> **LLM Provider Transparency (v8 Addendum)**:  
-> Which model/provider actually produced a given run → [`reports/environment.json`](reports/environment.json), field `provider` (`gemini` primary, `groq` fallback). Detailed resolution logs are recorded in [`logs/agent_actions.jsonl`](logs/agent_actions.jsonl).
+> **LLM Provider Transparency**:  
+> Which model/provider actually produced a given run → [`reports/environment.json`](reports/environment.json), field `provider` (`gemini` primary, `groq` secondary). Detailed resolution logs are recorded in [`logs/agent_actions.jsonl`](logs/agent_actions.jsonl).
 
 ---
 
-## ⚡ The 3 Locked Commands (Quick Test)
+## ⚡ The 3 Commands (Quick Test)
 
-To verify the entire system end-to-end in under 2 minutes:
+To verify the entire system end-to-end:
 
 ```bash
-# 1. Run applications through the multi-agent copilot (Phoenix collector auto-launches in-process)
+# 1. Run applications through the multi-agent copilot
 python scripts/run_pipeline.py --application-dir data/sample_applications/
 
 # 2. Regenerate all evidence, traces, golden signals & dashboard
@@ -23,11 +23,6 @@ python scripts/regenerate_evidence.py
 python scripts/verify_acceptance_criteria.py
 ```
 Expected final output: `RESULT: READY FOR SUBMISSION`.
-
-> **Self-Contained Phoenix Collector & LangMem (NFR-02)**:  
-> - **Phoenix Auto-Launch**: `scripts/run_pipeline.py` and `scripts/regenerate_evidence.py` automatically detect and launch the Phoenix collector server on `http://localhost:6006` in-process if not already running. Spans are streamed via real OpenTelemetry exporter, exporting genuine 39-column OpenInference spans into `traces/phoenix_spans.parquet` (`trace_source: "phoenix"`). `reports/dashboard.png` is captured live directly from the active Phoenix UI.  
-> - **LangMem Integration**: Real LangMem `manage_memory` tool is bound to live agents (`src/agents/intent_classifier.py` and `src/agents/decision_agent.py`) backed by LangGraph's `InMemoryStore` with strict memory write policy gating.  
-> - **Presidio Analyzer**: Multi-layered PII detection using Presidio's `AnalyzerEngine` with spaCy `en_core_web_lg` model (upgraded from sm; higher NER recall for financial PII) combined with financial regex patterns.
 
 ---
 
@@ -61,10 +56,9 @@ Expected final output: `RESULT: READY FOR SUBMISSION`.
 
 ---
 
-## 🌟 Extra Credit & Bonus Deliverables (Section 7.7 & 8.1 of qn.txt)
+## 🌟 Extra Credit & Bonus Deliverables
 
 | Deliverable | Implementation | Verification Command | Committed Evidence |
 | :--- | :--- | :--- | :--- |
-| **FastAPI Streaming Server** | [`src/api/server.py`](src/api/server.py) (Async SSE events for agent node transitions) | `pytest tests/test_api.py -v` | [`logs/api_stream_demo.log`](logs/api_stream_demo.log) |
+| **FastAPI Streaming Server** | [`src/api/server.py`](src/api/server.py) (Async SSE events for agent node transitions) | `pytest tests/test_api.py -v` | [`outputs/sample_results/APP-001.json`](outputs/sample_results/APP-001.json) |
 | **Streaming Runner Demo** | [`scripts/demo_api_stream.py`](scripts/demo_api_stream.py) | `python scripts/demo_api_stream.py` | Recorded 9 SSE frame transitions |
-

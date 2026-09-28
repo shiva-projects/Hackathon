@@ -37,73 +37,44 @@ def evaluate_underwriting_decision(
 
     # Check 1: Mandatory eligibility failures -> DECLINE
     failed_mandatory = [r for r in rule_results if r.is_mandatory_eligibility and not r.passed]
-    if failed_mandatory:
-        for f in failed_mandatory:
-            reasons.append(f"Failed mandatory eligibility rule [{f.rule_id}]: {f.message}")
-        return UnderwritingDecisionResult(
-            ai_recommendation=RecommendationType.DECLINE.value,
-            decision_status="DETERMINED",
-            unable_reason=None,
-            human_review_required=True,  # Per AC-03: decline routed for human review
-            affordability=affordability,
-            rule_results=rule_results,
-            risk_flags=risk_flags,
-            reasons=reasons,
-        )
+    for f in failed_mandatory:
+        reasons.append(f"Failed mandatory eligibility rule [{f.rule_id}]: {f.message}")
 
     # Check 2: High/critical risk flags -> REFER
     high_risks = [rf for rf in risk_flags if rf.get("severity") in {"CRITICAL", "HIGH"} and rf.get("flag") != "DTI_BREACH"]
-    if high_risks:
-        for hr in high_risks:
-            reasons.append(f"High risk detected [{hr.get('flag')}]: {hr.get('message')}")
-        return UnderwritingDecisionResult(
-            ai_recommendation=RecommendationType.REFER.value,
-            decision_status="DETERMINED",
-            unable_reason=None,
-            human_review_required=True,
-            affordability=affordability,
-            rule_results=rule_results,
-            risk_flags=risk_flags,
-            reasons=reasons,
-        )
+    for hr in high_risks:
+        reasons.append(f"High risk detected [{hr.get('flag')}]: {hr.get('message')}")
 
     # Check 3: High value loan review rule -> REFER
     high_value_rule = next((r for r in rule_results if r.rule_type == "high_value_review" and r.requires_human_review), None)
     if high_value_rule:
         reasons.append(f"High value loan requires underwriter review [{high_value_rule.rule_id}]: {high_value_rule.message}")
-        return UnderwritingDecisionResult(
-            ai_recommendation=RecommendationType.REFER.value,
-            decision_status="DETERMINED",
-            unable_reason=None,
-            human_review_required=True,
-            affordability=affordability,
-            rule_results=rule_results,
-            risk_flags=risk_flags,
-            reasons=reasons,
-        )
 
     # Check 4: DTI or Affordability breach -> REFER
     if affordability.breach:
         threshold_pct = f"{float(affordability.threshold):.1%}" if affordability.threshold else "N/A"
         reasons.append(f"DTI {float(affordability.dti):.1%} exceeds policy threshold {threshold_pct}")
-        return UnderwritingDecisionResult(
-            ai_recommendation=RecommendationType.REFER.value,
-            decision_status="DETERMINED",
-            unable_reason=None,
-            human_review_required=True,
-            affordability=affordability,
-            rule_results=rule_results,
-            risk_flags=risk_flags,
-            reasons=reasons,
-        )
 
-    # Check 5: All rules satisfied -> APPROVE
-    reasons.append(f"Application satisfies all eligibility, risk, and affordability criteria (DTI: {float(affordability.dti):.1%}).")
+    # Apply strict precedence locked in plan.md Section 4.4:
+    # 1. Mandatory eligibility failure -> DECLINE
+    # 2. Risk flags / high value / DTI breach -> REFER
+    # 3. All rules satisfied -> APPROVE
+    if failed_mandatory:
+        recommendation = RecommendationType.DECLINE.value
+        human_review = True
+    elif high_risks or high_value_rule or affordability.breach:
+        recommendation = RecommendationType.REFER.value
+        human_review = True
+    else:
+        recommendation = RecommendationType.APPROVE.value
+        human_review = False
+        reasons.append(f"Application satisfies all eligibility, risk, and affordability criteria (DTI: {float(affordability.dti):.1%}).")
+
     return UnderwritingDecisionResult(
-        ai_recommendation=RecommendationType.APPROVE.value,
+        ai_recommendation=recommendation,
         decision_status="DETERMINED",
         unable_reason=None,
-        human_review_required=False,
+        human_review_required=human_review,
         affordability=affordability,
         rule_results=rule_results,
         risk_flags=risk_flags,

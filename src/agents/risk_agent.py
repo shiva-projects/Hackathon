@@ -49,12 +49,14 @@ async def arisk_agent_node(state: LoanState) -> LoanState:
     state["step_count"] += 1
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
 
     log_agent_action(
         actor="risk_agent",
         action="screened_risk_rules",
         tool="domain.rules.evaluate_policy_rules",
         decision=f"{len(risk_flags)} flags raised",
+        run_id=effective_run_id,
         application_id=state.get("application_id"),
         latency_ms=latency_ms,
         details={"risk_count": len(risk_flags), "flags": risk_flags},

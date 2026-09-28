@@ -1,7 +1,7 @@
 {
   "application_id": "APP-CROSS-01",
-  "session_id": "SESSION-APP-CROSS-01-1790492735",
-  "run_id": "RUN-20260927123455",
+  "session_id": "SESSION-APP-CROSS-01-1790605474",
+  "run_id": "RUN-20260928194900",
   "request_status": "REFUSED",
   "refusal_reason": "CROSS_APPLICANT_ACCESS",
   "decision_status": "N/A",
@@ -15,5 +15,5 @@
   "policy_selected": {},
   "policy_citations": [],
   "rationale": "Request refused: CROSS_APPLICANT_ACCESS.",
-  "timestamp": "2026-09-27T07:05:35.888652+00:00"
+  "timestamp": "2026-09-28T14:24:36.282661+00:00"
 }

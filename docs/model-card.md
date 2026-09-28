@@ -2,9 +2,23 @@
 
 ## 1. Model Details
 - **System Name**: Loan Origination & Underwriting Copilot (BC-AAIE-HACK-02)
-- **Supported Model Providers & Architecture**:
-  - **Google Gemini API (`gemini`, model: `gemini-2.0-flash`)**: Attempted only when `GEMINI_API_KEY` is configured in the environment. If `GEMINI_API_KEY` is not present, Gemini is skipped entirely and Groq is selected directly. If Gemini is configured and fails due to quota exhaustion (429) or API unavailability, execution automatically falls back to Groq.
-  - **Groq API (`groq`, model: `openai/gpt-oss-20b`, fallback: `qwen/qwen3-32b`)**: Open-weights high-throughput inference used directly when Gemini is unconfigured or unavailable, verbally approved by course faculty for automated evaluation without rate limit throttling (see [`docs/instructor-provider-exception.md`](instructor-provider-exception.md)). Models actually evaluated in committed final evidence: `openai/gpt-oss-20b` for agent rationales and DeepEval (`CopilotJudgeLLM`).
+
+### Runtime Model
+- **Provider**: Groq (OpenAI-compatible endpoint `https://api.groq.com/openai/v1`)
+- **Primary Model**: `openai/gpt-oss-120b` (Input: $0.15 / 1M, Output: $0.60 / 1M tokens)
+- **Fallback Model**: `openai/gpt-oss-20b` (Input: $0.075 / 1M, Output: $0.30 / 1M tokens)
+- **Supported Alternative Provider**: Google Gemini API (`gemini`, model: `gemini-3.7-flash`, Input: $0.75 / 1M, Output: $3.75 / 1M tokens) supported when `LLM_PROVIDER=gemini` and `GEMINI_API_KEY` is provided. If `LLM_PROVIDER=groq` (default in submission) or if `GEMINI_API_KEY` is unconfigured, the Groq provider is resolved.
+
+### Evaluation Model
+- The same resolved provider/model configuration (`openai/gpt-oss-120b`) is used by `CopilotJudgeLLM` for DeepEval automated evaluation metrics.
+
+### Evidence & Traceability
+The exact provider and model for each evidence run are recorded deterministically in:
+- [`reports/environment.json`](../reports/environment.json)
+- [`logs/llm_calls.jsonl`](../logs/llm_calls.jsonl) (capturing exact model, provider, latency, and measured token usage from provider metadata)
+- [`reports/eval_report.json`](../reports/eval_report.json)
+- [`reports/golden_signals.json`](../reports/golden_signals.json)
+
 - **Provider Resolution & Fallback**: Deterministic, configuration-driven via [`config/model_config.json`](../config/model_config.json) and [`src/llm/provider_resolver.py`](../src/llm/provider_resolver.py). Every resolution and fallback event is self-disclosed and logged to [`logs/agent_actions.jsonl`](../logs/agent_actions.jsonl) and [`reports/environment.json`](../reports/environment.json).
 - **Orchestration**: LangGraph (StateGraph multi-agent architecture with supervisor pattern)
 - **Tool Protocol**: Model Context Protocol (FastMCP server consumed through `langchain-mcp-adapters` via connected in-memory client/server protocol session; exposes 2 MCP tools: `compute_affordability`, `get_policy_document` and 1 MCP resource: `policy-corpus://index`)

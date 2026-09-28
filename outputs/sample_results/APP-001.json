@@ -1,7 +1,7 @@
 {
   "application_id": "APP-001",
-  "session_id": "SESSION-APP-001-1790492710",
-  "run_id": "RUN-20260927123455",
+  "session_id": "SESSION-APP-001-1790605190",
+  "run_id": "RUN-20260928194900",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -85,6 +85,9 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-07",
+      "rule_ids": [
+        "PL-07"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-dti-002",
       "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
@@ -95,6 +98,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-15",
+      "rule_ids": [
+        "PL-15",
+        "PL-12",
+        "PL-19"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-limits-003",
       "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
@@ -105,6 +113,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-18",
+      "rule_ids": [
+        "PL-18",
+        "PL-DOC-01",
+        "PL-DOC-02"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-docs-004",
       "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
@@ -112,6 +125,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The deterministic underwriting engine indicates that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 20.8%, which is comfortably within the allowable threshold. Because there are no breaches flagged, the system\u2019s recommendation is to **APPROVE** the loan.",
-  "timestamp": "2026-09-27T07:05:22.998940+00:00"
+  "rationale": "The AI advisory recommends **APPROVE** the loan, noting a calculated Debt\u2011to\u2011Income ratio of **20.8\u202f%**, which is well below the 40.0\u202f% maximum permitted under Policy\u202fv2.0\u202fRule\u202fPL\u201107 and therefore \u201cWithin Acceptable Limits.\u201d The application also satisfies all eligibility, risk and affordability criteria\u2014including the minimum monthly gross income requirement (PL\u201115) and required documentation (PL\u201118)\u2014so no senior\u2011credit or enhanced\u2011underwriting referral is triggered.",
+  "timestamp": "2026-09-28T14:20:02.464091+00:00"
 }

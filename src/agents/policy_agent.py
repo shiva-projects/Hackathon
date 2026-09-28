@@ -38,6 +38,7 @@ async def apolicy_agent_node(state: LoanState) -> LoanState:
         state["decision_status"] = "UNABLE_TO_COMPLETE"
         state["unable_reason"] = selection.reason or "POLICY_UNAVAILABLE"
         state["human_review_required"] = True
+        state["request_status"] = "COMPLETED"
         state["routing_history"].append("policy_agent_error")
         return state
 
@@ -57,12 +58,13 @@ async def apolicy_agent_node(state: LoanState) -> LoanState:
         )
 
     # 3. Async Targeted RAG retrieval within selected policy only
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
     query = f"{product} affordability DTI loan limits documents"
     citations = await aretrieve_policy_chunks(
         query=query,
         selected_policy=selected_policy,
         top_k=3,
-        run_id=state.get("session_id", "default_run"),
+        run_id=effective_run_id,
     )
     state["policy_citations"] = citations
     state["routing_history"].append("policy_agent")
@@ -75,6 +77,7 @@ async def apolicy_agent_node(state: LoanState) -> LoanState:
         action="selected_policy_and_citations",
         tool="policy_selector",
         decision=selected_policy["version"],
+        run_id=effective_run_id,
         application_id=state.get("application_id"),
         latency_ms=latency_ms,
         details={"policy_id": selected_policy["policy_id"], "version": selected_policy["version"]},

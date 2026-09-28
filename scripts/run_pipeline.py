@@ -66,11 +66,11 @@ def run_single_application(
 
     # Check if this is a resumed clarification
     if clarification:
-        initial_state = create_initial_state(app_id, applicant_raw_text=raw_text, applicant_facts=facts, session_id=session_id)
+        initial_state = create_initial_state(app_id, applicant_raw_text=raw_text, applicant_facts=facts, session_id=session_id, run_id=run_id)
         initial_state["clarification_response"] = clarification
         initial_state["clarification_needed"] = False
     else:
-        initial_state = create_initial_state(app_id, applicant_raw_text=raw_text, applicant_facts=facts, session_id=session_id)
+        initial_state = create_initial_state(app_id, applicant_raw_text=raw_text, applicant_facts=facts, session_id=session_id, run_id=run_id)
 
     import asyncio
     final_state = asyncio.run(graph.ainvoke(initial_state, config=cfg))
@@ -222,15 +222,18 @@ def main():
     reset_run_provider()
     config = load_model_config()
 
+    import hashlib
+    config_sha256 = hashlib.sha256(json.dumps(config, sort_keys=True).encode("utf-8")).hexdigest()
+
     try:
         handle = get_llm_client()
         resolved_provider = handle.provider
         resolved_model = handle.model
         resolution_reason = handle.resolution_reason
     except Exception as exc:
-        resolved_provider = "gemini"
-        resolved_model = config.get("providers", {}).get("gemini", {}).get("chat_model", "gemini-2.0-flash")
-        resolution_reason = f"No live provider key detected ({exc}); falling back to default configuration"
+        print(f"[FATAL] No usable LLM provider. Pipeline execution aborted: {exc}")
+        print("Please configure a valid GEMINI_API_KEY or GROQ_API_KEY in .env before running.")
+        sys.exit(1)
 
     now_iso = datetime.now(timezone.utc).isoformat()
     log_agent_action(
@@ -243,6 +246,8 @@ def main():
             "resolved_provider": resolved_provider,
             "resolved_model": resolved_model,
             "resolution_reason": resolution_reason,
+            "resolution_status": "live_client_created",
+            "config_sha256": config_sha256,
             "timestamp": now_iso,
         },
     )
@@ -261,6 +266,8 @@ def main():
     env_data.update({
         "provider": resolved_provider,
         "model": resolved_model,
+        "resolution_status": "live_client_created",
+        "config_sha256": config_sha256,
         "temperature": config.get("providers", {}).get(resolved_provider, {}).get("temperature", 0.0),
         "resolution_order": config.get("resolution_order", ["gemini", "groq"]),
         "resolution_reason": resolution_reason,

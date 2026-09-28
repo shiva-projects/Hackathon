@@ -6,13 +6,13 @@
 
 ## 📢 Provider Exception & Dual-Provider Architecture (qn.txt §3.4)
 
-> **Faculty/Instructor Guidance**: Per direct instructor guidance (September 2026), this repository documents an operational deviation: pre-generated evidence artifacts utilize **Groq** (`openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b` / `qwen/qwen3-32b`) in place of Google Gemini.
+> **Faculty/Instructor Guidance**: Per direct instructor guidance (September 2026), this repository documents an operational deviation: pre-generated evidence artifacts utilize **Groq** (`openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b`) in place of Google Gemini.
 > 
-> **Rationale**: Google Gemini's public free-tier imposes severe rate constraints (15–20 requests/minute tier cap), causing `429 Quota Exceeded` errors during full evidence regeneration and automated evaluation suites (12 benchmark test cases + DeepEval metrics). Utilizing Groq ensured unthrottled, authentic wall-clock latencies and non-synthetic evidence generation.
+> **Rationale**: Google Gemini's public free-tier imposes severe rate constraints (15–20 requests/minute tier cap), causing `429 Quota Exceeded` errors during full evidence regeneration and automated evaluation suites (20 golden test cases + DeepEval metrics). Utilizing Groq ensured unthrottled, authentic wall-clock latencies and non-synthetic evidence generation.
 > 
-> **Grader 1-Command Verification with Google Gemini**: The codebase is architected with **zero vendor lock-in** and gives Google Gemini (`gemini-2.0-flash`) priority #1 in `config/model_config.json`. Any evaluator holding a Gemini API key can verify 100% Gemini compliance with **zero code changes** simply by running:
+> **Grader 1-Command Verification with Google Gemini**: The codebase is architected with **zero vendor lock-in** and supports explicit provider selection via `LLM_PROVIDER` (`LLM_PROVIDER=groq` or `LLM_PROVIDER=gemini`). It gives Google Gemini (`gemini-3.7-flash`) priority #1 in `config/model_config.json`. Any evaluator holding a Gemini API key can verify 100% Gemini compliance with **zero code changes** simply by running:
 > ```bash
-> GEMINI_API_KEY="AIzaSy..." python scripts/run_pipeline.py --application-dir data/sample_applications/
+> LLM_PROVIDER=gemini GEMINI_API_KEY="AIzaSy..." python scripts/run_pipeline.py --application-dir data/sample_applications/
 > ```
 > For full details, see [`docs/instructor-provider-exception.md`](docs/instructor-provider-exception.md).
 
@@ -52,7 +52,7 @@ Ensure `.env` contains:
 ```env
 # Preferred primary provider:
 GEMINI_API_KEY=your_actual_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-3.7-flash
 
 # Optional secondary fallback (used only if GEMINI_API_KEY is unset or exhausted):
 GROQ_API_KEY=
@@ -74,9 +74,9 @@ streamlit run app.py
 ### What You Can Do in the UI:
 1. **Choose from Preset Test Applications**:
    - `APP-001`: Standard Clean Approval (healthy 18.2% DTI)
-   - `APP-002`: Affordability DTI Breach (53.3% DTI > 40% policy threshold → `DECLINE`)
-   - `APP-003`: Missing Mandatory Documentation (missing income proof → `REFER`)
-   - `APP-004`: High-Value Loan (> £25,000 threshold → `REFER` to human underwriter)
+   - `APP-002`: Affordability DTI Breach (53.3% DTI > 40% policy threshold → `REFER`)
+   - `APP-003`: Missing Mandatory Documentation (missing income proof → `DECLINE`)
+   - `APP-004`: High-Value Loan (> ₹2,500,000 threshold → `REFER` to senior underwriter)
    - `APP-011`: UK Jurisdiction Lending Policy v2.0
    - `injection_case`: Adversarial Prompt Injection Defense
    - `ambiguous_case`: Clarification Routing Loop
@@ -152,7 +152,7 @@ RESULT: READY FOR SUBMISSION
 
 ## 5. Human-in-the-Loop CLI Review Flow
 
-High-value loan applications (> £25,000 / ₹2,500,000) or policy breaches automatically require human underwriter sign-off (`human_review_required = True`). A loan officer can review and issue a binding decision:
+High-value loan applications (> ₹2,500,000 in India / £25,000 in UK) or policy breaches automatically require human underwriter sign-off (`human_review_required = True`). A loan officer can review and issue a binding decision:
 ```bash
 python scripts/run_pipeline.py --application data/sample_applications/APP-004.json --review --reviewer-id LO-001 --decision APPROVE --reason "Collateral and executive guarantor confirmed"
 ```

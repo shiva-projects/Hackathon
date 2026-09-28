@@ -361,11 +361,11 @@ class CopilotJudgeLLM(DeepEvalBaseLLM):
     rather than defaulting to OpenAI.
     """
 
-    def __init__(self, model_name: Optional[str] = None):
+    def __init__(self, provider: Optional[str] = None, model: Optional[str] = None):
         from src.llm.client import get_llm_client
-        self.handle = get_llm_client()
-        self.model_name = model_name or self.handle.model
-        self.provider = self.handle.provider
+        self.handle = get_llm_client(force_provider=provider, force_model=model)
+        self.provider = provider or self.handle.provider
+        self.model_name = model or self.handle.model
         if DeepEvalBaseLLM is not object:
             super().__init__(model=self.model_name)
 
@@ -392,53 +392,37 @@ class CopilotJudgeLLM(DeepEvalBaseLLM):
                 return schema.model_validate(parsed)
             return json.dumps(parsed)
         except Exception:
-            pass
-
-        if isinstance(schema, type) and issubclass(schema, pydantic.BaseModel):
-            try:
-                return schema()
-            except Exception:
-                try:
-                    fields = schema.model_fields if hasattr(schema, "model_fields") else {}
-                    defaults = {}
-                    for f_name, f_info in fields.items():
-                        ann_str = str(getattr(f_info, "annotation", "")).lower()
-                        if "list" in ann_str:
-                            defaults[f_name] = []
-                        elif "int" in ann_str or "float" in ann_str:
-                            defaults[f_name] = 0
-                        elif "bool" in ann_str:
-                            defaults[f_name] = False
-                        else:
-                            defaults[f_name] = ""
-                    return schema(**defaults)
-                except Exception:
-                    pass
-        return res
+            return clean
 
     def generate(self, prompt: str, schema=None, **kwargs) -> Any:
         from src.llm.client import invoke_with_resilience
-        res = invoke_with_resilience(prompt)
+        res = invoke_with_resilience(prompt, force_model=self.model_name)
         return self._parse_or_construct_schema(res, schema)
 
     async def a_generate(self, prompt: str, schema=None, **kwargs) -> Any:
         from src.llm.client import ainvoke_with_resilience
-        res = await ainvoke_with_resilience(prompt)
+        res = await ainvoke_with_resilience(prompt, force_model=self.model_name)
         return self._parse_or_construct_schema(res, schema)
 
     def generate_with_schema(self, prompt: str, schema=None, **kwargs) -> Any:
-        return self.generate(prompt, schema=schema, **kwargs)
+        res = self.generate(prompt, schema=schema, **kwargs)
+        return res, 0.0
 
     async def a_generate_with_schema(self, prompt: str, schema=None, **kwargs) -> Any:
-        return await self.a_generate(prompt, schema=schema, **kwargs)
+        res = await self.a_generate(prompt, schema=schema, **kwargs)
+        return res, 0.0
 
     def get_model_name(self) -> str:
         return f"{self.provider}:{self.model_name}"
 
 
-def run_deepeval_metrics(eval_cases: list) -> Dict[str, Any]:
+def run_deepeval_metrics(
+    eval_cases: list,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+) -> Dict[str, Any]:
     """
-    Runs DeepEval HallucinationMetric and FaithfulnessMetric against
+    Runs DeepEval HallucinationMetric, FaithfulnessMetric, and AnswerRelevancyMetric against
     the underwriting golden set cases that produced actual rationale text.
     Fails loudly with RuntimeError if the judge model or metric measurement fails.
     """
@@ -449,7 +433,7 @@ def run_deepeval_metrics(eval_cases: list) -> Dict[str, Any]:
         )
 
     try:
-        from deepeval.metrics import HallucinationMetric, FaithfulnessMetric
+        from deepeval.metrics import HallucinationMetric, FaithfulnessMetric, AnswerRelevancyMetric
         from deepeval.test_case import LLMTestCase
     except ImportError as exc:
         raise RuntimeError(f"DeepEval library is required but not installed: {exc}") from exc
@@ -481,14 +465,19 @@ def run_deepeval_metrics(eval_cases: list) -> Dict[str, Any]:
             "DeepEval judge execution aborted: No evaluated cases contained both rationale and citations."
         )
 
-    judge = CopilotJudgeLLM()
-    hallucination_metric = HallucinationMetric(threshold=0.5, model=judge)
-    faithfulness_metric = FaithfulnessMetric(threshold=0.7, model=judge)
+    judge = CopilotJudgeLLM(provider=provider, model=model)
+    hallucination_metric = HallucinationMetric(threshold=0.5, model=judge, include_reason=False)
+    faithfulness_metric = FaithfulnessMetric(threshold=0.7, model=judge, include_reason=False)
+    answer_relevancy_metric = AnswerRelevancyMetric(threshold=0.7, model=judge, include_reason=False)
 
     hallucination_scores = []
     faithfulness_scores = []
+    answer_relevancy_scores = []
 
-    target_cases = test_cases[:3]
+    eval_delay = float(os.getenv("EVAL_DELAY_SECONDS", "1.0"))
+
+    # Evaluate all eligible golden test cases that produce rationales & policy citations
+    target_cases = test_cases
     for idx, tc in enumerate(target_cases, 1):
         try:
             hallucination_metric.measure(tc)
@@ -499,8 +488,9 @@ def run_deepeval_metrics(eval_cases: list) -> Dict[str, Any]:
                 f"Evaluation failed loudly per rubric requirement."
             ) from exc
 
-        import time
-        time.sleep(1.0)
+        if eval_delay > 0:
+            import time
+            time.sleep(eval_delay)
 
         try:
             faithfulness_metric.measure(tc)
@@ -511,23 +501,40 @@ def run_deepeval_metrics(eval_cases: list) -> Dict[str, Any]:
                 f"Evaluation failed loudly per rubric requirement."
             ) from exc
 
-        time.sleep(1.0)
+        if eval_delay > 0:
+            import time
+            time.sleep(eval_delay)
 
-    if not hallucination_scores or not faithfulness_scores:
+        try:
+            answer_relevancy_metric.measure(tc)
+            answer_relevancy_scores.append(float(answer_relevancy_metric.score))
+        except Exception as exc:
+            raise RuntimeError(
+                f"DeepEval AnswerRelevancyMetric failed on test case {idx}: {exc}. "
+                f"Evaluation failed loudly per rubric requirement."
+            ) from exc
+
+        if eval_delay > 0:
+            import time
+            time.sleep(eval_delay)
+
+    if not hallucination_scores or not faithfulness_scores or not answer_relevancy_scores:
         raise RuntimeError(
             "DeepEval judge completed but produced empty score lists. Failing loudly."
         )
 
     n = len(target_cases)
-    # Hallucination score in DeepEval: 1.0 means fully aligned (no hallucination).
-    # Hallucination rate = 1.0 - mean(score), so 0.0 is perfect.
+    # In DeepEval >= 4.0, HallucinationMetric scores 1.0 for perfect non-hallucination and 0.0 for all hallucinated.
+    # Therefore, the hallucination violation rate is (1.0 - avg_score).
     avg_h_score = sum(hallucination_scores) / len(hallucination_scores)
-    hall_rate = round(max(0.0, 1.0 - avg_h_score), 4)
+    hall_rate = max(0.0, round(1.0 - float(avg_h_score), 4))
     faith = round(sum(faithfulness_scores) / len(faithfulness_scores), 4)
+    ans_rel = round(sum(answer_relevancy_scores) / len(answer_relevancy_scores), 4)
 
     return {
         "hallucination_rate": hall_rate,
         "faithfulness": faith,
+        "answer_relevance": ans_rel,
         "deepeval_method": f"DeepEval(judge={judge.get_model_name()})",
         "deepeval_cases_evaluated": n,
     }
@@ -547,6 +554,7 @@ def run_evaluation(output_path: str = "reports/eval_report.json") -> Dict[str, A
     total_citations = 0
     passing_invariants = 0
 
+    eval_run_id = f"EVAL-{datetime.now(timezone.utc):%Y%m%d%H%M%S}"
     results = []
 
     for case in GOLDEN_SET:
@@ -556,6 +564,7 @@ def run_evaluation(output_path: str = "reports/eval_report.json") -> Dict[str, A
             applicant_raw_text=case["input_text"],
             applicant_facts=case["facts"],
             session_id=f"SESSION-EVAL-{app_id}",
+            run_id=eval_run_id,
         )
         import asyncio
         cfg = get_session_config(f"SESSION-EVAL-{app_id}")
@@ -623,7 +632,22 @@ def run_evaluation(output_path: str = "reports/eval_report.json") -> Dict[str, A
     pol_acc = round(correct_selections / selection_cases, 4) if selection_cases else 1.0
     cit_res = round(resolved_citations / total_citations, 4) if total_citations else 1.0
     inv_pass_rate = round(passing_invariants / total_cases, 4)
-    pii_leakage_rate = 0.0
+
+    # Measured PII leakage rate across generated outputs
+    from src.observability.span_sanitizer import (
+        EMAIL_PATTERN, PHONE_PATTERN, ACCOUNT_PATTERN,
+        CREDIT_ID_PATTERN, AADHAAR_PATTERN, SSN_PATTERN, PAN_PATTERN
+    )
+    pii_patterns = [EMAIL_PATTERN, PHONE_PATTERN, ACCOUNT_PATTERN, CREDIT_ID_PATTERN, AADHAAR_PATTERN, SSN_PATTERN, PAN_PATTERN]
+    pii_violations = 0
+    rationales_evaluated = 0
+    for r in results:
+        rat = r.get("_state", {}).get("rationale", "")
+        if rat:
+            rationales_evaluated += 1
+            if any(p.search(rat) for p in pii_patterns):
+                pii_violations += 1
+    pii_leakage_rate = round(pii_violations / rationales_evaluated, 4) if rationales_evaluated else 0.0
 
     # Run DeepEval LLM-as-judge metrics (AC-12)
     # Collect cases with rationale + citations for evaluation
@@ -636,12 +660,27 @@ def run_evaluation(output_path: str = "reports/eval_report.json") -> Dict[str, A
                 "rationale": state_data["rationale"],
                 "policy_citations": state_data["policy_citations"],
             })
-    deepeval_results = run_deepeval_metrics(deepeval_input_cases)
+    from src.llm.provider_resolver import resolve_provider
+    try:
+        resolved_provider, prov_cfg = resolve_provider()
+        resolved_model = prov_cfg.get("chat_model")
+    except Exception:
+        resolved_provider = "groq"
+        resolved_model = "openai/gpt-oss-120b"
+
+    deepeval_results = run_deepeval_metrics(
+        deepeval_input_cases,
+        provider=resolved_provider,
+        model=resolved_model,
+    )
 
     eval_report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "run_id": eval_run_id,
         "total_test_cases": total_cases,
         "live_key_present": has_live_provider_key(),
+        "provider": resolved_provider,
+        "model": resolved_model,
         "metrics": {
             "routing_accuracy": routing_acc,
             "recommendation_accuracy": rec_acc,
@@ -651,6 +690,7 @@ def run_evaluation(output_path: str = "reports/eval_report.json") -> Dict[str, A
             "pii_leakage_rate": pii_leakage_rate,
             "hallucination_rate": deepeval_results["hallucination_rate"],
             "faithfulness": deepeval_results["faithfulness"],
+            "answer_relevance": deepeval_results["answer_relevance"],
             "deepeval_method": deepeval_results["deepeval_method"],
             "deepeval_cases_evaluated": deepeval_results["deepeval_cases_evaluated"],
         },
@@ -661,6 +701,9 @@ def run_evaluation(output_path: str = "reports/eval_report.json") -> Dict[str, A
             "citation_resolution": {"min": 1.00, "pass": cit_res == 1.00},
             "state_invariant_pass_rate": {"min": 1.00, "pass": inv_pass_rate == 1.00},
             "pii_leakage_rate": {"max": 0.00, "pass": pii_leakage_rate == 0.00},
+            "hallucination_rate": {"max": 0.10, "pass": deepeval_results["hallucination_rate"] <= 0.10},
+            "faithfulness": {"min": 0.70, "pass": deepeval_results["faithfulness"] >= 0.70},
+            "answer_relevance": {"min": 0.70, "pass": deepeval_results["answer_relevance"] >= 0.70},
         },
         "details": results,
     }
@@ -672,10 +715,24 @@ def run_evaluation(output_path: str = "reports/eval_report.json") -> Dict[str, A
 
     print(f"Eval completed: routing_acc={routing_acc:.1%}, rec_acc={rec_acc:.1%}, cit_res={cit_res:.1%}")
     print(f"Saved to: {output_path}")
+
+    # Enforce pass/fail CI threshold gate
+    all_pass = all(t["pass"] for t in eval_report["thresholds"].values())
+    if not all_pass:
+        failed_thresholds = [k for k, t in eval_report["thresholds"].items() if not t["pass"]]
+        print(f"FAILED THRESHOLDS: {failed_thresholds}")
+
     return eval_report
 
 
 run_eval = run_evaluation
 
 if __name__ == "__main__":
-    run_evaluation()
+    report = run_evaluation()
+    all_pass = all(t["pass"] for t in report["thresholds"].values())
+    if not all_pass:
+        failed_thresholds = [k for k, t in report["thresholds"].items() if not t["pass"]]
+        print(f"Evaluation suite failed thresholds: {failed_thresholds}")
+        sys.exit(1)
+    print("All evaluation thresholds successfully passed!")
+    sys.exit(0)

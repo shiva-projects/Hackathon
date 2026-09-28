@@ -1,7 +1,7 @@
 {
   "application_id": "APP-002",
-  "session_id": "SESSION-APP-002-1790492723",
-  "run_id": "RUN-20260927123455",
+  "session_id": "SESSION-APP-002-1790605202",
+  "run_id": "RUN-20260928194900",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
@@ -92,6 +92,9 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-07",
+      "rule_ids": [
+        "PL-07"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-dti-002",
       "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
@@ -102,6 +105,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-15",
+      "rule_ids": [
+        "PL-15",
+        "PL-12",
+        "PL-19"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-limits-003",
       "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
@@ -112,6 +120,11 @@
       "policy_id": "PL-001",
       "version": "v2.0",
       "rule_id": "PL-18",
+      "rule_ids": [
+        "PL-18",
+        "PL-DOC-01",
+        "PL-DOC-02"
+      ],
       "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
       "chunk_id": "chunk-docs-004",
       "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
@@ -119,6 +132,6 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio is 52.0%, which exceeds the policy\u2011defined maximum of 40.0% under version\u202f2.0, triggering a breach status. Because this DTI breach violates the underwriting rule, the system automatically issues a **REFER** recommendation. The credit officer should review the file further to assess any mitigating factors before a final decision.",
-  "timestamp": "2026-09-27T07:05:25.458486+00:00"
+  "rationale": "AI recommendation: REFER (Advisory). Application flagged for underwriter review based on calculated DTI of 52.0%. Deterministic evaluation requires human assessment.",
+  "timestamp": "2026-09-28T14:20:17.791898+00:00"
 }

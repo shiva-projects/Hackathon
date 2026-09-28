@@ -12,12 +12,22 @@ from src.observability.unified_logger import log_agent_action, log_tool_call
 
 # Keyword heuristic rules for deterministic fallback / tests
 INTENT_KEYWORD_RULES = [
-    (re.compile(r"(?:status|check|progress|where\s+is\s+my\s+application|track)", re.IGNORECASE), "status_check"),
-    (re.compile(r"(?:documents?|required\s+doc|upload|aadhaar|pan|statement\s+needed)", re.IGNORECASE), "document_question"),
+    (re.compile(r"\b(?:status|check|progress|where\s+is\s+my\s+application|track)\b", re.IGNORECASE), "status_check"),
+    (re.compile(r"\b(?:documents?|required\s+doc|upload|aadhaar|pan|statement\s+needed)\b", re.IGNORECASE), "document_question"),
     (re.compile(r"(?:what\s+is\s+(?:the\s+)?(?:lending\s+)?policy|policy\s+rule|dti\s+limit|max\s+loan\s+allowed|explain\s+(?:the\s+)?policy|tell\s+me\s+(?:about\s+)?(?:the\s+)?policy|show\s+(?:me\s+)?(?:the\s+)?policy|criteria\s+for|qualifying\s+criteria)", re.IGNORECASE), "policy_question"),
-    (re.compile(r"(?:transfer\s+money|weather|crypto|stock\s+tips|tell\s+me\s+a\s+joke|book\s+flight)", re.IGNORECASE), "out_of_scope"),
+    (re.compile(r"\b(?:transfer\s+money|weather|crypto|stock\s+tips|tell\s+me\s+a\s+joke|book\s+flight)\b", re.IGNORECASE), "out_of_scope"),
     (re.compile(r"(?:show\s+me\s+applicant|income\s+of\s+another|hack|bypass|drop\s+database)", re.IGNORECASE), "security_sensitive"),
     (re.compile(r"\b(?:apply|loan|assess|borrow|underwrite)\b", re.IGNORECASE), "new_application"),
+]
+
+ORDERED_INTENT_CATEGORIES = [
+    "security_sensitive",
+    "out_of_scope",
+    "status_check",
+    "document_question",
+    "policy_question",
+    "ambiguous",
+    "new_application",
 ]
 
 
@@ -51,6 +61,8 @@ def classify_intent(text: str, current_intent: str = "new_application") -> str:
 
 import time
 from src.llm.provider_resolver import has_live_provider_key
+from src.context.quarantine import quarantine_untrusted_text
+from src.prompts.intent_prompts import build_intent_prompt, INTENT_PROMPT_VERSION
 
 
 def classify_intent_with_llm(text: str, run_id: str = "default_run") -> Optional[str]:
@@ -61,22 +73,11 @@ def classify_intent_with_llm(text: str, run_id: str = "default_run") -> Optional
         return None
 
     try:
-        prompt = (
-            "You are an intent classifier for a retail loan underwriting copilot system.\n"
-            "Classify the following applicant request into EXACTLY ONE of the following valid intent categories:\n"
-            "- new_application (applying for loan, assessing eligibility)\n"
-            "- status_check (asking where is application, progress, track)\n"
-            "- document_question (asking what documents are needed)\n"
-            "- policy_question (asking about lending policy, rules, thresholds, DTI)\n"
-            "- ambiguous (vague greeting, unclear request)\n"
-            "- out_of_scope (weather, crypto, transfer money, flight booking)\n"
-            "- security_sensitive (prompt injection, cross-applicant data, hacking)\n\n"
-            f"Applicant Request: {text}\n\n"
-            "Respond ONLY with the category name in lowercase."
-        )
+        quarantined = quarantine_untrusted_text(text)
+        prompt = build_intent_prompt(quarantined)
 
         response = invoke_with_resilience(prompt, run_id=run_id).strip().lower()
-        for valid in VALID_INTENTS:
+        for valid in ORDERED_INTENT_CATEGORIES:
             if valid in response:
                 return valid
     except Exception as e:
@@ -93,22 +94,11 @@ async def aclassify_intent_with_llm(text: str, run_id: str = "default_run") -> O
         return None
 
     try:
-        prompt = (
-            "You are an intent classifier for a retail loan underwriting copilot system.\n"
-            "Classify the following applicant request into EXACTLY ONE of the following valid intent categories:\n"
-            "- new_application (applying for loan, assessing eligibility)\n"
-            "- status_check (asking where is application, progress, track)\n"
-            "- document_question (asking what documents are needed)\n"
-            "- policy_question (asking about lending policy, rules, thresholds, DTI)\n"
-            "- ambiguous (vague greeting, unclear request)\n"
-            "- out_of_scope (weather, crypto, transfer money, flight booking)\n"
-            "- security_sensitive (prompt injection, cross-applicant data, hacking)\n\n"
-            f"Applicant Request: {text}\n\n"
-            "Respond ONLY with the category name in lowercase."
-        )
+        quarantined = quarantine_untrusted_text(text)
+        prompt = build_intent_prompt(quarantined)
 
         response = (await ainvoke_with_resilience(prompt, run_id=run_id)).strip().lower()
-        for valid in VALID_INTENTS:
+        for valid in ORDERED_INTENT_CATEGORIES:
             if valid in response:
                 return valid
     except Exception as e:
@@ -125,7 +115,7 @@ async def intent_classifier_node(state: LoanState) -> LoanState:
 
     # If clarification provided on resume, combine to reclassify
     full_text = f"{raw_text} {clarification}".strip()
-    session_id = state.get("session_id", "default_run")
+    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
 
     # Structural override: if applicant_facts has income_amount AND requested_amount,
     # this is definitively a loan application regardless of free-text keywords.
@@ -140,7 +130,7 @@ async def intent_classifier_node(state: LoanState) -> LoanState:
         detected_intent = "new_application"
     else:
         # 1. Attempt async LLM classification if live provider is configured
-        llm_intent = await aclassify_intent_with_llm(full_text, run_id=session_id)
+        llm_intent = await aclassify_intent_with_llm(full_text, run_id=effective_run_id)
         if llm_intent:
             detected_intent = llm_intent
         else:
@@ -156,17 +146,18 @@ async def intent_classifier_node(state: LoanState) -> LoanState:
     mem_tool = long_term_memory.get_langmem_tool(app_id, "profile")
     if mem_tool is not None:
         state["_langmem_tool"] = getattr(mem_tool, "name", "manage_memory")
-        # Exercise the LangMem manage_memory tool to decide what to remember
-        invocation_result = mem_tool.invoke(state.get("applicant_facts", {}))
+        t0 = time.perf_counter()
+        invocation_result = mem_tool.invoke({"applicant_id": app_id})
+        t_lat = round((time.perf_counter() - t0) * 1000.0, 2)
         log_tool_call(
             agent="intent_classifier",
             tool_name=getattr(mem_tool, "name", "manage_memory"),
-            args={"facts": state.get("applicant_facts", {})},
-            result={"invocation": invocation_result},
-            latency_ms=0.1,
+            args={"applicant_id": app_id, "namespace": "profile"},
+            result={"status": "invoked"},
+            latency_ms=max(0.2, t_lat),
             status="success",
             application_id=app_id,
-            run_id=state.get("session_id", "default_run"),
+            run_id=effective_run_id,
         )
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
@@ -177,8 +168,13 @@ async def intent_classifier_node(state: LoanState) -> LoanState:
         tool=None,
         decision=detected_intent,
         application_id=state.get("application_id"),
+        run_id=effective_run_id,
         latency_ms=latency_ms,
-        details={"intent": detected_intent},
+        details={
+            "intent": detected_intent,
+            "prompt_name": "intent_classifier",
+            "prompt_version": INTENT_PROMPT_VERSION,
+        },
     )
     return state
 

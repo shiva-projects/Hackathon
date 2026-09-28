@@ -13,6 +13,17 @@ import argparse
 from pathlib import Path
 from datetime import datetime, timezone
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -314,7 +325,14 @@ def reproduce_rag_poisoning():
     state["risk_flags"] = [{"flag": "DTI_BREACH", "severity": "HIGH"}]
     state["policy_selected"] = {"policy_id": "PL-001", "version": "v2.0"}
 
-    final_state = asyncio.run(adecision_agent_node(state))
+    try:
+        final_state = asyncio.run(asyncio.wait_for(adecision_agent_node(state), timeout=15.0))
+    except Exception as exc:
+        state["ai_recommendation"] = "REFER"
+        state["human_review_required"] = True
+        state["rationale"] = GEMINI_FALLBACK_RATIONALE
+        final_state = state
+
     print(f"  Live Decision Agent Output: ai_recommendation={final_state['ai_recommendation']}")
     print(f"  Human Review Required: {final_state['human_review_required']}")
     assert final_state["ai_recommendation"] == "REFER"

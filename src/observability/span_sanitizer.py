@@ -13,6 +13,9 @@ EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b
 PHONE_PATTERN = re.compile(r"\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}|\d{10})\b")
 ACCOUNT_PATTERN = re.compile(r"\b(?:ACC-?|AC-?|acc-?|\d{4}-)\d{4,12}\b")
 CREDIT_ID_PATTERN = re.compile(r"\b(?:CR-?|cr-?|PAN-?|pan-?)[A-Z0-9]{8,12}\b")
+AADHAAR_PATTERN = re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b")
+SSN_PATTERN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+PAN_PATTERN = re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b")
 
 # Sensitive key names to redact or mask (Canonical Policy for NFR-05 & AC-06)
 SENSITIVE_KEYS = {
@@ -100,6 +103,9 @@ def sanitize_text(text: str) -> str:
     sanitized = CREDIT_ID_PATTERN.sub("[REDACTED_CREDIT_ID]", sanitized)
     sanitized = EMAIL_PATTERN.sub("[REDACTED_EMAIL]", sanitized)
     sanitized = PHONE_PATTERN.sub("[REDACTED_PHONE]", sanitized)
+    sanitized = AADHAAR_PATTERN.sub("[REDACTED_AADHAAR]", sanitized)
+    sanitized = SSN_PATTERN.sub("[REDACTED_SSN]", sanitized)
+    sanitized = PAN_PATTERN.sub("[REDACTED_PAN]", sanitized)
 
     # Layer 2: Microsoft Presidio Named Entity & PII Analyzer (catches generic SSN, NHS, IBAN, etc.)
     if len(sanitized) >= 7 and ("@" in sanitized or any(c.isdigit() for c in sanitized)):

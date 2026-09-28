@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-09-27T12:05:50.359538+00:00",
+  "generated_at": "2026-09-28T09:59:39.600559+00:00",
   "total_test_cases": 20,
   "live_key_present": true,
   "metrics": {
     "routing_accuracy": 1.0,
-    "recommendation_accuracy": 1.0,
-    "policy_selection_accuracy": 1.0,
+    "recommendation_accuracy": 0.9167,
+    "policy_selection_accuracy": 0.9231,
     "citation_resolution": 1.0,
     "state_invariant_pass_rate": 1.0,
     "pii_leakage_rate": 0.0,
     "hallucination_rate": 0.0,
     "faithfulness": 1.0,
     "deepeval_method": "DeepEval(judge=groq:openai/gpt-oss-120b)",
-    "deepeval_cases_evaluated": 12
+    "deepeval_cases_evaluated": 3
   },
   "thresholds": {
     "routing_accuracy": {
@@ -21,11 +21,11 @@
     },
     "recommendation_accuracy": {
       "min": 1.0,
-      "pass": true
+      "pass": false
     },
     "policy_selection_accuracy": {
       "min": 1.0,
-      "pass": true
+      "pass": false
     },
     "citation_resolution": {
       "min": 1.0,
@@ -49,7 +49,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine indicates that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 20.8%, which is comfortably within the allowable threshold. Because there are no breaches flagged, the system\u2019s recommendation is to **APPROVE** the loan.",
+        "rationale": "The underwriting system under Policy\u202fv2.0 issues an advisory **APPROVE** recommendation, noting that the applicant\u2019s calculated Debt\u2011to\u2011Income ratio is **20.8\u202f%**, which is within the acceptable limit. This outcome reflects that the application meets all required eligibility, risk, and affordability criteria, including the DTI threshold. No further action is required beyond the advisory approval indicated.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -92,7 +92,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio is 52.0%, which exceeds the policy\u2011defined maximum of 40.0% under version\u202f2.0, triggering a breach status. Because this DTI breach violates the underwriting rule, the system automatically generates a **REFER** recommendation. The credit officer should review the file further to assess any mitigating factors before making a final decision.",
+        "rationale": "The underwriting system generates a **REFER** recommendation because the applicant\u2019s calculated Debt\u2011to\u2011Income ratio is **52.0%**, which exceeds the policy\u2011defined maximum DTI of 40.0% and therefore triggers a breach status. Under policy\u202fv2.0, any DTI breach automatically results in a referral advisory for further manual review. No other factors altered this deterministic outcome.\n[Correction: Official deterministic assessment is REFER based on calculated DTI of 52.0%].",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -131,43 +131,12 @@
       "case_id": "GOLD-03",
       "name": "Missing mandatory document",
       "route_ok": true,
-      "recommendation_ok": true,
-      "policy_selection_ok": true,
+      "recommendation_ok": false,
+      "policy_selection_ok": false,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The loan must be declined because the applicant failed the mandatory eligibility rule PL\u2011DOC\u201102, which requires an\u202fincome_statement\u202fto be on file. Since this required document is missing, the underwriting system cannot verify the borrower\u2019s ability to repay, leading to a DECLINE recommendation. No other factors (e.g., DTI) affect this decision.",
-        "policy_citations": [
-          {
-            "policy_id": "PL-001",
-            "version": "v2.0",
-            "rule_id": "PL-07",
-            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
-            "chunk_id": "chunk-dti-002",
-            "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
-            "text": "## Section 2: Affordability and Debt-to-Income (Chunk: chunk-dti-002)\nApplicants must satisfy the debt-to-income (DTI) affordability threshold. Under Rule PL-07, the maximum permitted Debt-to-Income (DTI) ratio is 40.0% (0.40) of normalized monthly gross income. Applications exceeding 40.0% DTI shall not be automatically approved and must be referred to a senior credit officer for discretionary assessment.",
-            "score": 0.6953
-          },
-          {
-            "policy_id": "PL-001",
-            "version": "v2.0",
-            "rule_id": "PL-15",
-            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
-            "chunk_id": "chunk-limits-003",
-            "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
-            "text": "## Section 3: Income and Loan Size Limits (Chunk: chunk-limits-003)\nUnder Rule PL-15, the minimum acceptable monthly gross income is INR 25,000. The standard maximum unsecured loan amount is INR 1,500,000 under Rule PL-12. Loans requested at or above INR 2,500,000 trigger mandatory enhanced underwriting review under Rule PL-19.",
-            "score": 0.5765
-          },
-          {
-            "policy_id": "PL-001",
-            "version": "v2.0",
-            "rule_id": "PL-18",
-            "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
-            "chunk_id": "chunk-docs-004",
-            "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
-            "text": "## Section 4: Tenure and Documentation (Chunk: chunk-docs-004)\nThe minimum permitted loan tenure is 6 months under Rule PL-18. All applicants must provide mandatory verified identity proof (Rule PL-DOC-01) and valid income documentation / bank statements (Rule PL-DOC-02). Failure to supply these documents results in mandatory eligibility decline.",
-            "score": 0.5596
-          }
-        ]
+        "rationale": "Request refused: SEMANTIC_LLM_INJECTION_DETECTED.",
+        "policy_citations": []
       }
     },
     {
@@ -178,7 +147,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The system has flagged the application as high\u2011risk because the requested loan amount of\u202f$3,000,000 exceeds the policy maximum of\u202f$1,500,000, triggering the **LOAN_AMOUNT_EXCEEDED** rule. Although the applicant\u2019s debt\u2011to\u2011income ratio is low (8.0%) and there are no breach flags, the oversized loan amount alone warrants a **REFER** recommendation for further review.",
+        "rationale": "The system generates a **REFER** recommendation with a calculated Debt\u2011to\u2011Income ratio of **8.0%**, which is within the acceptable limit defined by Policy\u202fv2.0. However, the requested loan amount of\u202f$3,000,000 exceeds the policy maximum of\u202f$1,500,000, triggering the high\u2011risk \u201cLOAN_AMOUNT_EXCEEDED\u201d flag. Consequently, the advisory outcome is to refer the application for further review.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -245,7 +214,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "",
+        "rationale": "Policy v2.0 retrieved. Found 3 relevant policy rules.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -336,7 +305,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "",
+        "rationale": "Policy v1.0 retrieved. Found 3 relevant policy rules.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -379,7 +348,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine has determined that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 25.0% and no breach flags. Because all criteria are satisfied, the system\u2019s recommendation is to **APPROVE** the loan.",
+        "rationale": "The AI underwriting model has issued an **APPROVE** recommendation under policy v2.0, with a calculated Debt\u2011to\u2011Income ratio of **25.0%** that is within acceptable limits. All eligibility, risk, and affordability criteria are satisfied according to the model\u2019s deterministic assessment. This is an advisory statement; the final decision remains with the loan officer.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -422,7 +391,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The applicant\u2019s debt\u2011to\u2011income ratio is 56.2%, which is well above the policy\u2011defined maximum of 40.0%, triggering a breach status. Because this DTI breach violates the underwriting rules in version\u202f2.0, the system automatically issues a **REFER** recommendation for further manual review.",
+        "rationale": "The AI underwriting model has flagged the application for referral under policy v2.0 due to a calculated debt\u2011to\u2011income ratio of 56.2%, which exceeds the policy threshold of 40.0%. This breach triggers the \u201cREFER\u201d recommendation, indicating that further manual review is required. No additional applicant data is provided beyond the DTI figure.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -465,7 +434,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The underwriting system recommends **APPROVE** because the applicant\u2019s debt\u2011to\u2011income ratio is only 5.0%, well within the allowable limits, and there are no breach flags. All eligibility, risk, and affordability criteria have been met, confirming the loan is fully compliant with policy version\u202fv2.0. Consequently, the credit officer can proceed with approval as indicated.",
+        "rationale": "The AI underwriting model has determined an **APPROVE (Advisory)** recommendation under policy v2.0. The applicant\u2019s calculated debt\u2011to\u2011income ratio is **5.0\u202f%**, which is well within the acceptable limits and satisfies all eligibility, risk, and affordability criteria. This advisory outcome is based solely on the deterministic evaluation and does not constitute a final legal decision.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -508,7 +477,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The loan is being flagged for referral because the applicant\u2019s debt\u2011to\u2011income ratio is 53.3%, which is above the allowable limit of 40.0% set in policy version\u202fv2.0. This breach of the DTI threshold triggers a \u201cRefer\u201d recommendation for further manual review.",
+        "rationale": "The AI underwriting model has flagged the application for referral under policy v2.0 due to a calculated debt\u2011to\u2011income ratio of 53.3%, which exceeds the policy threshold of 40.0%. This breach triggers the \u201cREFER\u201d recommendation, indicating that further manual review is required. No additional applicant data is provided beyond the DTI figure.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -551,7 +520,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The application was declined because it failed the mandatory eligibility rule PL\u2011DOC\u201101, which requires the borrower to submit an identity\u2011proof document. Since the required \u201cidentity_proof\u201d is missing, the underwriting system cannot verify the applicant\u2019s identity, leading to an automatic decline. No other factors (e.g., DTI) affect this decision.",
+        "rationale": "The AI recommendation is DECLINE, with a calculated Debt\u2011to\u2011Income ratio of 0.0%, which is within acceptable limits under policy v2.0. The decline is triggered by a failure to meet mandatory eligibility rule\u202fPL\u2011DOC\u201101, as the required document \u201cidentity_proof\u201d is missing. No further applicant data or credit claims are provided in this assessment.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -594,7 +563,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The loan is recommended for **APPROVAL** under policy version\u202fv2.0. The applicant\u2019s debt\u2011to\u2011income ratio is 11.5%, well within the allowable limits, and there are no breach flags. Consequently, the application meets all eligibility, risk, and affordability requirements.",
+        "rationale": "The AI underwriting model has generated an advisory **APPROVE** recommendation under policy v2.0, with a calculated debt\u2011to\u2011income ratio of **11.5%**, which falls within acceptable limits. All eligibility, risk, and affordability criteria are satisfied, indicating the applicant meets the required thresholds. This assessment is advisory; final decision remains with the credit officer.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -637,7 +606,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The underwriting engine flagged a breach because the applicant\u2019s debt\u2011to\u2011income ratio is 54.5%, which exceeds the policy\u2011defined maximum of 40.0% (Policy Version\u202fv2.0). As a result, the system automatically issues a **REFER** recommendation for further manual review. No other factors changed the outcome.",
+        "rationale": "The AI underwriting model has flagged the application for referral under policy v2.0 due to a debt\u2011to\u2011income ratio of 54.5%, which exceeds the policy threshold of 40.0%. This breach triggers the \u201cREFER\u201d recommendation, indicating that further manual review is required. No additional applicant data is provided beyond the calculated DTI.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -680,7 +649,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine has determined that the applicant meets every eligibility, risk, and affordability requirement, with a debt\u2011to\u2011income ratio of 11.1% and no breach flags. Because all criteria are satisfied, the system recommends an **APPROVE** decision. No further adjustments to the recommendation are needed.",
+        "rationale": "The AI underwriting model has issued an **APPROVE** recommendation under policy v2.0, with a calculated Debt\u2011to\u2011Income ratio of **11.1%**, which falls within acceptable limits. All eligibility, risk, and affordability criteria are satisfied according to the model\u2019s deterministic assessment. This is an advisory statement; the final decision remains with the credit officer.",
         "policy_citations": [
           {
             "policy_id": "PL-001",

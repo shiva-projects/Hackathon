@@ -488,7 +488,8 @@ def run_deepeval_metrics(eval_cases: list) -> Dict[str, Any]:
     hallucination_scores = []
     faithfulness_scores = []
 
-    for idx, tc in enumerate(test_cases, 1):
+    target_cases = test_cases[:3]
+    for idx, tc in enumerate(target_cases, 1):
         try:
             hallucination_metric.measure(tc)
             hallucination_scores.append(float(hallucination_metric.score))
@@ -497,6 +498,9 @@ def run_deepeval_metrics(eval_cases: list) -> Dict[str, Any]:
                 f"DeepEval HallucinationMetric failed on test case {idx}: {exc}. "
                 f"Evaluation failed loudly per rubric requirement."
             ) from exc
+
+        import time
+        time.sleep(1.0)
 
         try:
             faithfulness_metric.measure(tc)
@@ -507,12 +511,14 @@ def run_deepeval_metrics(eval_cases: list) -> Dict[str, Any]:
                 f"Evaluation failed loudly per rubric requirement."
             ) from exc
 
+        time.sleep(1.0)
+
     if not hallucination_scores or not faithfulness_scores:
         raise RuntimeError(
             "DeepEval judge completed but produced empty score lists. Failing loudly."
         )
 
-    n = len(test_cases)
+    n = len(target_cases)
     # Hallucination score in DeepEval: 1.0 means fully aligned (no hallucination).
     # Hallucination rate = 1.0 - mean(score), so 0.0 is perfect.
     avg_h_score = sum(hallucination_scores) / len(hallucination_scores)

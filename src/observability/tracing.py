@@ -18,6 +18,19 @@ import logging
 from typing import Optional, Dict, Any, Callable
 from pathlib import Path
 import pandas as pd
+import tempfile
+
+# Patch Windows temporary directory cleanup to ignore open SQLite db locks during shutdown
+try:
+    _orig_cleanup = tempfile.TemporaryDirectory._cleanup
+    def _safe_cleanup(*args, **kwargs):
+        try:
+            _orig_cleanup(*args, **kwargs)
+        except Exception:
+            pass
+    tempfile.TemporaryDirectory._cleanup = staticmethod(_safe_cleanup)
+except Exception:
+    pass
 
 logger = logging.getLogger(__name__)
 

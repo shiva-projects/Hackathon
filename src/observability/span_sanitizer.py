@@ -13,7 +13,7 @@ EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b
 PHONE_PATTERN = re.compile(r"(?<![A-Za-z0-9_])(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}|\b[6-9]\d{9}\b)(?![A-Za-z0-9_])")
 ACCOUNT_PATTERN = re.compile(r"\b(?:ACC-?|AC-?|acc-?|\d{4}-)\d{4,12}\b")
 CREDIT_ID_PATTERN = re.compile(r"\b(?:CR-?|cr-?|PAN-?|pan-?)[A-Z0-9]{8,12}\b")
-AADHAAR_PATTERN = re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b")
+AADHAAR_PATTERN = re.compile(r"(?<!RUN-)(?<!AUTO-)(?<!RUN_)(?<!evt-)(?<!trace-)(?<!step-)\b\d{4}[ -]?\d{4}[ -]?\d{4}\b")
 SSN_PATTERN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 PAN_PATTERN = re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b")
 

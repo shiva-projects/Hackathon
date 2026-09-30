@@ -60,12 +60,50 @@ def classify_intent(text: str, current_intent: str = "new_application") -> str:
 
 
 import time
+import json
+import logging
 from src.llm.provider_resolver import has_live_provider_key
 from src.context.quarantine import quarantine_untrusted_text
 from src.prompts.intent_prompts import build_intent_prompt, INTENT_PROMPT_VERSION
+from src.domain.models import IntentType, IntentClassificationResult
+
+logger = logging.getLogger(__name__)
 
 
-def classify_intent_with_llm(text: str, run_id: str = "default_run") -> Optional[str]:
+def parse_llm_intent_output(raw_output: str) -> Optional[IntentClassificationResult]:
+    """
+    Parses LLM output into typed IntentClassificationResult.
+    Validates against canonical IntentType enum.
+    Rejects malformed/unknown intent output without partial substring matching.
+    """
+    clean_text = raw_output.strip()
+
+    # 1. Try JSON block / direct JSON
+    json_match = re.search(r"\{.*?\}", clean_text, re.DOTALL)
+    if json_match:
+        try:
+            parsed = json.loads(json_match.group(0))
+            if "intent" in parsed:
+                return IntentClassificationResult(
+                    intent=parsed["intent"].strip().lower(),
+                    reasoning=parsed.get("reasoning"),
+                )
+        except Exception as exc:
+            logger.debug("Failed to parse intent JSON: %s", exc)
+
+    # 2. Try strict exact token match (no partial substring search)
+    token = clean_text.strip("`'\" \n\r\t").lower()
+    try:
+        return IntentClassificationResult(intent=token)
+    except Exception:
+        pass
+
+    # Malformed / unknown intent
+    logger.warning("Malformed or unknown LLM intent output rejected: %s", clean_text)
+    return None
+
+
+def classify_intent_with_llm(text: str, run_id: Optional[str] = None) -> Optional[str]:
     """Attempts LLM-based intent classification synchronously, returning None if offline/failed."""
     from src.llm.client import invoke_with_resilience
 
@@ -76,17 +114,16 @@ def classify_intent_with_llm(text: str, run_id: str = "default_run") -> Optional
         quarantined = quarantine_untrusted_text(text)
         prompt = build_intent_prompt(quarantined)
 
-        response = invoke_with_resilience(prompt, run_id=run_id).strip().lower()
-        for valid in ORDERED_INTENT_CATEGORIES:
-            if valid in response:
-                return valid
+        raw_response = invoke_with_resilience(prompt, run_id=run_id)
+        parsed = parse_llm_intent_output(raw_response)
+        if parsed:
+            return parsed.intent.value
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Sync LLM intent classification failed ({e}), falling back to heuristics.")
+        logger.warning("Sync LLM intent classification failed (%s), falling back to heuristics.", e)
     return None
 
 
-async def aclassify_intent_with_llm(text: str, run_id: str = "default_run") -> Optional[str]:
+async def aclassify_intent_with_llm(text: str, run_id: Optional[str] = None) -> Optional[str]:
     """Attempts asynchronous LLM-based intent classification."""
     from src.llm.client import ainvoke_with_resilience
 
@@ -97,13 +134,12 @@ async def aclassify_intent_with_llm(text: str, run_id: str = "default_run") -> O
         quarantined = quarantine_untrusted_text(text)
         prompt = build_intent_prompt(quarantined)
 
-        response = (await ainvoke_with_resilience(prompt, run_id=run_id)).strip().lower()
-        for valid in ORDERED_INTENT_CATEGORIES:
-            if valid in response:
-                return valid
+        raw_response = await ainvoke_with_resilience(prompt, run_id=run_id)
+        parsed = parse_llm_intent_output(raw_response)
+        if parsed:
+            return parsed.intent.value
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Async LLM intent classification failed ({e}), falling back to heuristics.")
+        logger.warning("Async LLM intent classification failed (%s), falling back to heuristics.", e)
     return None
 
 
@@ -115,26 +151,30 @@ async def intent_classifier_node(state: LoanState) -> LoanState:
 
     # If clarification provided on resume, combine to reclassify
     full_text = f"{raw_text} {clarification}".strip()
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id in {"default_run", "RUN-MCP", "RUN-UNKNOWN"}:
+        raise ValueError("intent_classifier requires canonical run_id in state")
 
-    # Structural override: if applicant_facts has income_amount AND requested_amount,
-    # this is definitively a loan application regardless of free-text keywords.
+    # Classify sanitized user text first (Phase 7 requirement)
+    # Do not let presence of income/requested amount automatically override user intent
     facts = state.get("applicant_facts", {})
     has_structured_application = (
         facts.get("income_amount") is not None
         and facts.get("requested_amount") is not None
     )
 
-    if has_structured_application:
-        # Skip LLM and keyword classification — structured data is authoritative
-        detected_intent = "new_application"
-    else:
-        # 1. Attempt async LLM classification if live provider is configured
+    if full_text.strip():
+        # Attempt async LLM classification if live provider is configured
         llm_intent = await aclassify_intent_with_llm(full_text, run_id=effective_run_id)
         if llm_intent:
             detected_intent = llm_intent
         else:
             detected_intent = classify_intent(full_text, state.get("intent", "new_application"))
+    elif has_structured_application:
+        # Structured data without explicit query text defaults to loan application
+        detected_intent = "new_application"
+    else:
+        detected_intent = "ambiguous"
 
     state["intent"] = detected_intent
     state["routing_history"].append("intent_classifier")
@@ -147,7 +187,11 @@ async def intent_classifier_node(state: LoanState) -> LoanState:
     if mem_tool is not None:
         state["_langmem_tool"] = getattr(mem_tool, "name", "manage_memory")
         t0 = time.perf_counter()
-        invocation_result = mem_tool.invoke({"applicant_id": app_id})
+        if hasattr(mem_tool, "ainvoke"):
+            invocation_result = await mem_tool.ainvoke({"applicant_id": app_id})
+        else:
+            import asyncio
+            invocation_result = await asyncio.to_thread(mem_tool.invoke, {"applicant_id": app_id})
         t_lat = round((time.perf_counter() - t0) * 1000.0, 2)
         log_tool_call(
             agent="intent_classifier",

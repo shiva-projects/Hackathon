@@ -54,6 +54,11 @@ from src.observability.tracing import tracer
 logger = logging.getLogger(__name__)
 
 
+class MCPUnavailableError(Exception):
+    """Raised when MCP server transport, session, tool, or resource is unavailable or exhausted retries."""
+    pass
+
+
 class MCPSessionPool:
     """
     Session pool and manager for MCP protocol sessions.
@@ -67,31 +72,36 @@ class MCPSessionPool:
         self._pool: Dict[str, Dict[str, Any]] = {}
         self._worker_loop: Optional[asyncio.AbstractEventLoop] = None
         self._worker_thread: Optional[threading.Thread] = None
-        self._worker_stack: Optional[AsyncExitStack] = None
         self._worker_session = None
         self._worker_tools = None
         self._worker_ready = threading.Event()
+        self._stop_event: Optional[asyncio.Event] = None
         self._start_worker()
 
     def _start_worker(self):
         def _target():
             self._worker_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._worker_loop)
+            self._stop_event = asyncio.Event()
 
-            async def _init():
-                self._worker_stack = AsyncExitStack()
-                self._worker_session = await self._worker_stack.enter_async_context(
-                    create_connected_server_and_client_session(mcp._mcp_server)
-                )
-                self._worker_tools = await load_mcp_tools(session=self._worker_session)
-                self._worker_ready.set()
+            async def _worker_main():
+                try:
+                    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+                        self._worker_session = session
+                        self._worker_tools = await load_mcp_tools(session=session)
+                        self._worker_ready.set()
+                        await self._stop_event.wait()
+                except Exception as e:
+                    logger.error("Failed to initialize MCP persistent worker session: %s", e)
+                    self._worker_ready.set()
 
             try:
-                self._worker_loop.run_until_complete(_init())
-                self._worker_loop.run_forever()
-            except Exception as e:
-                logger.error("Failed to initialize MCP persistent worker session: %s", e)
-                self._worker_ready.set()
+                self._worker_loop.run_until_complete(_worker_main())
+            finally:
+                try:
+                    self._worker_loop.close()
+                except Exception:
+                    pass
 
         self._worker_thread = threading.Thread(target=_target, daemon=True, name="mcp-session-worker")
         self._worker_thread.start()
@@ -122,49 +132,54 @@ class MCPSessionPool:
             await stack.aclose()
 
     async def execute_tool(self, tool_name: str, args: Dict[str, Any], session_id: Optional[str] = None) -> Any:
-        try:
+        async def _raw_invoke():
             if session_id and session_id in self._pool:
                 entry = self._pool[session_id]
                 tools = entry["tools"]
                 tool = next((t for t in tools if t.name == tool_name), None)
                 if tool is None:
-                    raise RuntimeError(f"MCP tool '{tool_name}' not registered in MCP server via adapter")
+                    raise MCPUnavailableError(f"MCP tool '{tool_name}' not registered in MCP server via adapter")
                 raw_result = await tool.ainvoke(args)
                 return self._format_result(raw_result)
 
             if self._worker_loop and self._worker_loop.is_running() and self._worker_tools:
                 tool = next((t for t in self._worker_tools if t.name == tool_name), None)
                 if tool is None:
-                    raise RuntimeError(f"MCP tool '{tool_name}' not registered in MCP server via adapter")
+                    raise MCPUnavailableError(f"MCP tool '{tool_name}' not registered in MCP server via adapter")
                 future = asyncio.run_coroutine_threadsafe(tool.ainvoke(args), self._worker_loop)
                 raw_result = await asyncio.wrap_future(future)
                 return self._format_result(raw_result)
 
-            raise RuntimeError("No active MCP session available in pool")
-        except Exception as exc:
-            logger.warning("MCP session invocation for '%s' failed: %s; falling back to direct server tool execution", tool_name, exc)
-            return self._fallback_tool_execution(tool_name, args)
+            raise MCPUnavailableError("No active MCP session available in pool")
+
+        attempt = 1
+        max_attempts = 2
+        timeout_seconds = 10.0
+        last_error = None
+
+        while attempt <= max_attempts:
+            try:
+                return await asyncio.wait_for(_raw_invoke(), timeout=timeout_seconds)
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "MCP tool invocation '%s' attempt %d/%d failed: %s",
+                    tool_name, attempt, max_attempts, exc,
+                )
+                if attempt == max_attempts:
+                    break
+                await asyncio.sleep(0.5 * attempt)
+                attempt += 1
+
+        raise MCPUnavailableError(
+            f"MCP tool execution '{tool_name}' failed after {max_attempts} attempts: {last_error}"
+        ) from last_error
 
     def execute_tool_sync(self, tool_name: str, args: Dict[str, Any], session_id: Optional[str] = None) -> Any:
-        try:
-            if session_id and session_id in self._pool:
-                return _run_coroutine_sync(self.execute_tool(tool_name, args, session_id))
-
-            if self._worker_loop and self._worker_loop.is_running() and self._worker_tools:
-                tool = next((t for t in self._worker_tools if t.name == tool_name), None)
-                if tool is None:
-                    raise RuntimeError(f"MCP tool '{tool_name}' not registered in MCP server via adapter")
-                future = asyncio.run_coroutine_threadsafe(tool.ainvoke(args), self._worker_loop)
-                raw_result = future.result(timeout=10.0)
-                return self._format_result(raw_result)
-
-            raise RuntimeError("No active MCP session available in pool")
-        except Exception as exc:
-            logger.warning("MCP sync invocation for '%s' failed: %s; falling back to direct server tool execution", tool_name, exc)
-            return self._fallback_tool_execution(tool_name, args)
+        return _run_coroutine_sync(self.execute_tool(tool_name, args, session_id))
 
     async def read_resource(self, uri: str, session_id: Optional[str] = None) -> Dict[str, Any]:
-        try:
+        async def _raw_read():
             if session_id and session_id in self._pool:
                 session = self._pool[session_id]["session"]
                 res = await session.read_resource(AnyUrl(uri))
@@ -175,38 +190,33 @@ class MCPSessionPool:
                 res = await asyncio.wrap_future(future)
                 return self._format_resource(res)
 
-            raise RuntimeError("No active MCP session available in pool")
-        except Exception as exc:
-            logger.warning("MCP read_resource failed for '%s': %s; using direct resource index", uri, exc)
-            from mcp_server.server import get_policy_corpus_index
-            return json.loads(get_policy_corpus_index())
+            raise MCPUnavailableError("No active MCP session available in pool")
+
+        attempt = 1
+        max_attempts = 2
+        timeout_seconds = 10.0
+        last_error = None
+
+        while attempt <= max_attempts:
+            try:
+                return await asyncio.wait_for(_raw_read(), timeout=timeout_seconds)
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "MCP read_resource '%s' attempt %d/%d failed: %s",
+                    uri, attempt, max_attempts, exc,
+                )
+                if attempt == max_attempts:
+                    break
+                await asyncio.sleep(0.5 * attempt)
+                attempt += 1
+
+        raise MCPUnavailableError(
+            f"MCP read_resource failed for '{uri}' after {max_attempts} attempts: {last_error}"
+        ) from last_error
 
     def read_resource_sync(self, uri: str, session_id: Optional[str] = None) -> Dict[str, Any]:
-        try:
-            if self._worker_loop and self._worker_loop.is_running() and self._worker_session:
-                future = asyncio.run_coroutine_threadsafe(self._worker_session.read_resource(AnyUrl(uri)), self._worker_loop)
-                res = future.result(timeout=10.0)
-                return self._format_resource(res)
-            return _run_coroutine_sync(self.read_resource(uri, session_id))
-        except Exception as exc:
-            logger.warning("MCP read_resource failed for '%s': %s; using direct resource index", uri, exc)
-            from mcp_server.server import get_policy_corpus_index
-            return json.loads(get_policy_corpus_index())
-
-    @staticmethod
-    def _fallback_tool_execution(tool_name: str, args: Dict[str, Any]) -> Any:
-        if tool_name == "get_policy_document":
-            from mcp_server.server import get_policy_document
-            return json.loads(get_policy_document(args.get("policy_id", ""), args.get("version", "")))
-        elif tool_name == "compute_affordability":
-            from mcp_server.server import compute_affordability
-            return json.loads(compute_affordability(
-                income_amount=args.get("income_amount", 0.0),
-                income_period=args.get("income_period", "monthly"),
-                existing_obligations=args.get("existing_obligations", []),
-                dti_max_threshold=args.get("dti_max_threshold", 0.40),
-            ))
-        raise RuntimeError(f"Unknown MCP tool '{tool_name}' for fallback")
+        return _run_coroutine_sync(self.read_resource(uri, session_id))
 
     @staticmethod
     def _format_result(raw_result: Any) -> Any:
@@ -221,6 +231,33 @@ class MCPSessionPool:
         if hasattr(res, "contents") and len(res.contents) > 0:
             return json.loads(res.contents[0].text)
         return {}
+
+    def shutdown(self) -> None:
+        """
+        Explicitly shuts down the MCP persistent worker loop, session, and thread.
+        Provides clean resource reclamation without leaking background threads or file handles.
+        """
+        with self._lock:
+            if self._worker_loop and self._worker_loop.is_running() and self._stop_event is not None:
+                try:
+                    self._worker_loop.call_soon_threadsafe(self._stop_event.set)
+                except Exception as e:
+                    logger.warning("Error signaling MCP worker stop: %s", e)
+            if self._worker_thread and self._worker_thread.is_alive():
+                self._worker_thread.join(timeout=3.0)
+            self._worker_loop = None
+            self._worker_thread = None
+            self._worker_session = None
+            self._worker_tools = None
+            self._stop_event = None
+            MCPSessionPool._instance = None
+
+
+def shutdown_mcp_pool() -> None:
+    """Explicitly closes and shuts down any active MCPSessionPool instance."""
+    pool = MCPSessionPool._instance
+    if pool is not None:
+        pool.shutdown()
 
 
 @asynccontextmanager
@@ -287,13 +324,29 @@ class MCPClient:
     """
 
     @classmethod
-    def read_resource_manifest(cls) -> Dict[str, Any]:
+    def read_resource_manifest(
+        cls,
+        run_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        application_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Reads policy-corpus://index resource manifest via MCP protocol."""
-        return _run_coroutine_sync(cls.aread_resource_manifest())
+        return _run_coroutine_sync(cls.aread_resource_manifest(run_id, step_id, application_id))
 
     @classmethod
-    async def aread_resource_manifest(cls) -> Dict[str, Any]:
+    async def aread_resource_manifest(
+        cls,
+        run_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        application_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Asynchronously reads policy-corpus://index resource via MCP protocol."""
+        from src.context.execution_context import resolve_identity
+        ident = resolve_identity(explicit_run_id=run_id, explicit_app_id=application_id, explicit_step_id=step_id or "step-mcp-resource-manifest", required=False)
+        effective_run_id = ident["run_id"]
+        effective_step_id = ident["step_id"]
+        effective_app_id = ident["application_id"]
+
         start_time = time.time()
         try:
             data = await _read_mcp_resource("policy-corpus://index")
@@ -303,30 +356,97 @@ class MCPClient:
                 resource_or_tool="policy-corpus://index",
                 caller="policy_selector",
                 details={"policy_count": len(data.get("policies", {}))},
+                run_id=effective_run_id,
+                step_id=effective_step_id,
+                application_id=effective_app_id,
             )
             return data
         except Exception as exc:
             logger.error("Failed to read MCP resource policy-corpus://index: %s", exc)
-            from mcp_server.server import get_policy_corpus_index
-            return json.loads(get_policy_corpus_index())
+            log_mcp_event(
+                event_type="resource_read",
+                resource_or_tool="policy-corpus://index",
+                caller="policy_selector",
+                details={"error": str(exc), "status": "error"},
+                run_id=effective_run_id,
+                step_id=effective_step_id,
+                application_id=effective_app_id,
+            )
+            if not isinstance(exc, MCPUnavailableError):
+                raise MCPUnavailableError(f"Failed to read MCP resource policy-corpus://index: {exc}") from exc
+            raise
 
     @classmethod
-    def call_get_policy_document(cls, policy_id: str, version: str) -> Dict[str, Any]:
+    def call_get_policy_document(
+        cls,
+        policy_id: str,
+        version: str,
+        run_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        application_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Synchronously invokes get_policy_document MCP tool via adapter with persistent session."""
-        return _run_coroutine_sync(cls.acall_get_policy_document(policy_id, version))
+        return _run_coroutine_sync(cls.acall_get_policy_document(policy_id, version, run_id, step_id, application_id))
 
     @classmethod
-    async def acall_get_policy_document(cls, policy_id: str, version: str) -> Dict[str, Any]:
+    async def acall_get_policy_document(
+        cls,
+        policy_id: str,
+        version: str,
+        run_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        application_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Asynchronously invokes get_policy_document MCP tool via langchain-mcp-adapters."""
+        from src.context.execution_context import resolve_identity
+        ident = resolve_identity(explicit_run_id=run_id, explicit_app_id=application_id, explicit_step_id=step_id or "step-mcp-get-policy", required=False)
+        effective_run_id = ident["run_id"]
+        effective_step_id = ident["step_id"]
+        effective_app_id = ident["application_id"]
+
         start_time = time.time()
         args = {"policy_id": policy_id, "version": version}
         try:
             res = await _execute_mcp_tool("get_policy_document", args)
             status = "success" if "error" not in res else "not_found"
         except Exception as exc:
+            end_time = time.time()
+            latency_ms = round((end_time - start_time) * 1000, 2)
             logger.error("MCP get_policy_document via adapter failed: %s", exc)
-            res = {"error": str(exc)}
-            status = "error"
+            tracer.record_span(
+                name="mcp.get_policy_document",
+                span_kind="tool",
+                start_time=start_time,
+                end_time=end_time,
+                inputs=args,
+                outputs={"status": "error", "error": str(exc)},
+                run_id=effective_run_id,
+                step_id=effective_step_id,
+                application_id=effective_app_id,
+            )
+            log_tool_call(
+                agent="mcp_client",
+                tool_name="mcp.get_policy_document",
+                args=args,
+                result={"status": "error", "error": str(exc)},
+                latency_ms=latency_ms,
+                status="error",
+                run_id=effective_run_id,
+                step_id=effective_step_id,
+                application_id=effective_app_id,
+            )
+            log_mcp_event(
+                event_type="tool_call",
+                resource_or_tool="get_policy_document",
+                caller="policy_agent",
+                details={"policy_id": policy_id, "version": version, "error": str(exc), "status": "error"},
+                run_id=effective_run_id,
+                step_id=effective_step_id,
+                application_id=effective_app_id,
+            )
+            if not isinstance(exc, MCPUnavailableError):
+                raise MCPUnavailableError(f"MCP get_policy_document failed: {exc}") from exc
+            raise
 
         end_time = time.time()
         latency_ms = round((end_time - start_time) * 1000, 2)
@@ -338,8 +458,9 @@ class MCPClient:
             end_time=end_time,
             inputs=args,
             outputs={"status": status},
-            run_id="RUN-MCP",
-            step_id="step-mcp-get-policy",
+            run_id=effective_run_id,
+            step_id=effective_step_id,
+            application_id=effective_app_id,
         )
         log_tool_call(
             agent="mcp_client",
@@ -348,12 +469,18 @@ class MCPClient:
             result={"status": status},
             latency_ms=latency_ms,
             status=status,
+            run_id=effective_run_id,
+            step_id=effective_step_id,
+            application_id=effective_app_id,
         )
         log_mcp_event(
             event_type="tool_call",
             resource_or_tool="get_policy_document",
             caller="policy_agent",
             details={"policy_id": policy_id, "version": version, "found": "error" not in res},
+            run_id=effective_run_id,
+            step_id=effective_step_id,
+            application_id=effective_app_id,
         )
         return res
 
@@ -364,6 +491,9 @@ class MCPClient:
         income_period: str,
         existing_obligations: List[Dict[str, Any]],
         dti_max_threshold: float = 0.40,
+        run_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        application_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Synchronously invokes compute_affordability MCP tool via adapter with persistent session."""
         return _run_coroutine_sync(
@@ -372,6 +502,9 @@ class MCPClient:
                 income_period=income_period,
                 existing_obligations=existing_obligations,
                 dti_max_threshold=dti_max_threshold,
+                run_id=run_id,
+                step_id=step_id,
+                application_id=application_id,
             )
         )
 
@@ -382,8 +515,17 @@ class MCPClient:
         income_period: str,
         existing_obligations: List[Dict[str, Any]],
         dti_max_threshold: float = 0.40,
+        run_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        application_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Asynchronously invokes compute_affordability MCP tool via langchain-mcp-adapters."""
+        from src.context.execution_context import resolve_identity
+        ident = resolve_identity(explicit_run_id=run_id, explicit_app_id=application_id, explicit_step_id=step_id or "step-mcp-affordability", required=False)
+        effective_run_id = ident["run_id"]
+        effective_step_id = ident["step_id"]
+        effective_app_id = ident["application_id"]
+
         start_time = time.time()
         args = {
             "income_amount": income_amount,
@@ -402,9 +544,43 @@ class MCPClient:
         except ValueError:
             raise
         except Exception as exc:
+            end_time = time.time()
+            latency_ms = round((end_time - start_time) * 1000, 2)
             logger.error("MCP compute_affordability via adapter failed: %s", exc)
-            res = {"error": str(exc)}
-            status = "error"
+            tracer.record_span(
+                name="mcp.compute_affordability",
+                span_kind="tool",
+                start_time=start_time,
+                end_time=end_time,
+                inputs={"income_amount": income_amount, "dti_max_threshold": dti_max_threshold},
+                outputs={"status": "error", "error": str(exc)},
+                run_id=effective_run_id,
+                step_id=effective_step_id,
+                application_id=effective_app_id,
+            )
+            log_tool_call(
+                agent="mcp_client",
+                tool_name="mcp.compute_affordability",
+                args={"income_amount": income_amount, "dti_max_threshold": dti_max_threshold},
+                result={"status": "error", "error": str(exc)},
+                latency_ms=latency_ms,
+                status="error",
+                run_id=effective_run_id,
+                step_id=effective_step_id,
+                application_id=effective_app_id,
+            )
+            log_mcp_event(
+                event_type="tool_call",
+                resource_or_tool="compute_affordability",
+                caller="eligibility_agent",
+                details={"error": str(exc), "status": "error"},
+                run_id=effective_run_id,
+                step_id=effective_step_id,
+                application_id=effective_app_id,
+            )
+            if not isinstance(exc, MCPUnavailableError):
+                raise MCPUnavailableError(f"MCP compute_affordability failed: {exc}") from exc
+            raise
 
         end_time = time.time()
         latency_ms = round((end_time - start_time) * 1000, 2)
@@ -416,8 +592,9 @@ class MCPClient:
             end_time=end_time,
             inputs={"income_amount": income_amount, "dti_max_threshold": dti_max_threshold},
             outputs={"dti": res.get("dti"), "breach": res.get("breach")},
-            run_id="RUN-MCP",
-            step_id="step-mcp-affordability",
+            run_id=effective_run_id,
+            step_id=effective_step_id,
+            application_id=effective_app_id,
         )
         log_tool_call(
             agent="mcp_client",
@@ -426,11 +603,17 @@ class MCPClient:
             result={"dti": res.get("dti"), "breach": res.get("breach")},
             latency_ms=latency_ms,
             status=status,
+            run_id=effective_run_id,
+            step_id=effective_step_id,
+            application_id=effective_app_id,
         )
         log_mcp_event(
             event_type="tool_call",
             resource_or_tool="compute_affordability",
             caller="eligibility_agent",
             details=res,
+            run_id=effective_run_id,
+            step_id=effective_step_id,
+            application_id=effective_app_id,
         )
         return res

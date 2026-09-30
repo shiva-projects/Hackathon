@@ -1,11 +1,14 @@
 {
   "application_id": "APP-001",
-  "session_id": "SESSION-APP-001-1790605190",
-  "run_id": "RUN-20260928194900",
+  "session_id": "SESSION-APP-001-1790783138",
+  "run_id": "RUN-20260930211255",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
   "unable_reason": null,
+  "clarification_needed": false,
+  "clarification_question": null,
+  "clarification_response": null,
   "ai_recommendation": "APPROVE",
   "human_review_required": false,
   "final_decision": null,
@@ -125,6 +128,20 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The AI advisory recommends **APPROVE** the loan, noting a calculated Debt\u2011to\u2011Income ratio of **20.8\u202f%**, which is well below the 40.0\u202f% maximum permitted under Policy\u202fv2.0\u202fRule\u202fPL\u201107 and therefore \u201cWithin Acceptable Limits.\u201d The application also satisfies all eligibility, risk and affordability criteria\u2014including the minimum monthly gross income requirement (PL\u201115) and required documentation (PL\u201118)\u2014so no senior\u2011credit or enhanced\u2011underwriting referral is triggered.",
-  "timestamp": "2026-09-28T14:20:02.464091+00:00"
+  "routing_history": [
+    "input_guard",
+    "authorization_node",
+    "intent_classifier",
+    "supervisor",
+    "policy_agent",
+    "supervisor",
+    "eligibility_agent",
+    "supervisor",
+    "risk_agent",
+    "supervisor",
+    "decision_node",
+    "supervisor"
+  ],
+  "rationale": "The AI advisory recommendation is **APPROVE** with a calculated Debt\u2011to\u2011Income (DTI) of **20.8\u202f%**, which is well below the PL\u201107 threshold of 40.0\u202f% and within the acceptable limits of policy v2.0.  \nThe application satisfies all eligibility, risk, and affordability criteria, including the income and loan\u2011size limits under PL\u201115 and the documentation requirements under PL\u201118.  \nAccordingly, the deterministic underwriting assessment supports approval under policy v2.0.",
+  "timestamp": "2026-09-30T15:47:23.796504+00:00"
 }

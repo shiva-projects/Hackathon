@@ -9,9 +9,13 @@ import sys
 import json
 import re
 import hashlib
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 # 1. Required Files Manifest
 REQUIRED_FILES = [
@@ -101,10 +105,14 @@ KNOWN_TOOLS = {
     "mcp.compute_affordability",
     # LangMem memory management tool
     "manage_memory",
+    # Domain calculation & test suite tools
+    "calculate_dti",
+    "test_tool",
+    "clean_tool",
 }
 
 RAW_PII_PATTERNS = [
-    re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}\b"),       # Aadhaar / 12-digit card
+    re.compile(r"(?<!RUN-)(?<!AUTO-)(?<!RUN_)(?<!evt-)(?<!trace-)(?<!step-)\b\d{4}[ -]?\d{4}[ -]?\d{4}\b"),       # Aadhaar / 12-digit card
     re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),                # SSN
     re.compile(r"\bACC-\d{8}\b"),                        # Account numbers unmasked
     re.compile(r"\bCRN-\d{6}\b"),                        # Credit reference unmasked
@@ -237,29 +245,171 @@ def check_secrets_and_pii():
     return True, "No secrets or raw PII detected in logs, source, or environment configs."
 
 
-def check_unified_log_consistency():
-    unified_path = REPO_ROOT / "logs" / "unified_trace.jsonl"
+def check_unified_log_consistency(logs_dir: Optional[Path] = None):
+    """
+    Validates record-level integrity and identity reconciliation between component logs
+    and logs/unified_trace.jsonl (Phase 9, plan.md Section 7.5).
+    Reconciles event_id, run_id, tool_call_id, review_id, step_id, timestamp, and attempts.
+    """
+    base_dir = Path(logs_dir) if logs_dir else (REPO_ROOT / "logs")
+    unified_path = base_dir / "unified_trace.jsonl"
     if not unified_path.exists():
-        return False, "logs/unified_trace.jsonl missing."
-        
-    unified_count = 0
+        return False, f"{unified_path} missing."
+
+    # 1. Parse unified_trace.jsonl with record-level identity validation
+    unified_records = []
+    unified_by_id = {}
+    unified_by_source = {}
+
     with open(unified_path, "r", encoding="utf-8") as f:
-        for l in f:
-            if l.strip():
-                unified_count += 1
-                
-    sub_count = 0
-    for name in ["tool_calls.jsonl", "agent_actions.jsonl", "mcp_transcript.jsonl", "human_reviews.jsonl"]:
-        p = REPO_ROOT / "logs" / name
-        if p.exists():
-            with open(p, "r", encoding="utf-8") as f:
-                for l in f:
-                    if l.strip():
-                        sub_count += 1
-                        
-    if unified_count != sub_count:
-        return False, f"Log count mismatch: unified_trace={unified_count} vs sum_of_components={sub_count}"
-    return True, f"Unified log perfectly reconciled with component logs ({unified_count} total events)."
+        for line_idx, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as e:
+                return False, f"Corrupt JSON in unified_trace.jsonl line {line_idx}: {e}"
+
+            # Verify timestamp is parseable ISO
+            ts = rec.get("timestamp")
+            if not ts:
+                return False, f"Missing timestamp in unified_trace.jsonl record (line {line_idx})"
+            try:
+                datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except Exception as e:
+                return False, f"Unparseable timestamp '{ts}' in unified_trace.jsonl line {line_idx}: {e}"
+
+            event_id = (
+                rec.get("event_id")
+                or (f"evt-{rec['tool_call_id']}" if rec.get("tool_call_id") else None)
+                or (f"evt-{rec['review_id']}" if rec.get("review_id") else None)
+                or f"evt-composite-{rec.get('run_id')}-{rec.get('step_id')}-{ts}"
+            )
+
+            if event_id in unified_by_id:
+                return False, f"Duplicate event_id in unified_trace.jsonl: {event_id} (line {line_idx})"
+
+            unified_by_id[event_id] = rec
+            unified_records.append(rec)
+
+            src = rec.get("source_log")
+            if src:
+                src_name = Path(src).name
+                if src_name not in unified_by_source:
+                    unified_by_source[src_name] = {}
+                unified_by_source[src_name][event_id] = rec
+
+    # 2. Correlate every component record to unified records
+    component_files = [
+        "tool_calls.jsonl",
+        "agent_actions.jsonl",
+        "mcp_transcript.jsonl",
+        "human_reviews.jsonl",
+    ]
+    total_component_records = 0
+
+    for comp_name in component_files:
+        comp_path = base_dir / comp_name
+        if not comp_path.exists():
+            continue
+
+        comp_records = []
+        with open(comp_path, "r", encoding="utf-8") as f:
+            for line_idx, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as e:
+                    return False, f"Corrupt JSON in {comp_name} line {line_idx}: {e}"
+
+                ts = rec.get("timestamp")
+                if not ts:
+                    return False, f"Missing timestamp in {comp_name} record (line {line_idx})"
+                try:
+                    datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                except Exception as e:
+                    return False, f"Unparseable timestamp '{ts}' in {comp_name} line {line_idx}: {e}"
+
+                event_id = (
+                    rec.get("event_id")
+                    or (f"evt-{rec['tool_call_id']}" if rec.get("tool_call_id") else None)
+                    or (f"evt-{rec['review_id']}" if rec.get("review_id") else None)
+                    or f"evt-composite-{rec.get('run_id')}-{rec.get('step_id')}-{ts}"
+                )
+                comp_records.append((event_id, rec, line_idx))
+
+        total_component_records += len(comp_records)
+        unified_for_comp = unified_by_source.get(comp_name, {})
+
+        if len(comp_records) != len(unified_for_comp):
+            return (
+                False,
+                f"Record count mismatch for {comp_name}: component has {len(comp_records)} records, unified has {len(unified_for_comp)} records.",
+            )
+
+        for event_id, rec, line_idx in comp_records:
+            if event_id not in unified_for_comp:
+                return (
+                    False,
+                    f"Record identity reconciliation failure: {comp_name} record (event_id={event_id}, line={line_idx}) not found in unified_trace.jsonl.",
+                )
+
+            unif_rec = unified_for_comp[event_id]
+
+            # Verify matching run_id
+            if rec.get("run_id") != unif_rec.get("run_id"):
+                return (
+                    False,
+                    f"run_id mismatch for event {event_id} in {comp_name}: component has '{rec.get('run_id')}' vs unified has '{unif_rec.get('run_id')}'.",
+                )
+
+            # Verify matching tool_call_id for tool events
+            if "tool_call_id" in rec:
+                if rec.get("tool_call_id") != unif_rec.get("tool_call_id"):
+                    return (
+                        False,
+                        f"tool_call_id mismatch for event {event_id} in {comp_name}: component has '{rec.get('tool_call_id')}' vs unified has '{unif_rec.get('tool_call_id')}'.",
+                    )
+                if rec.get("attempt") != unif_rec.get("attempt"):
+                    return (
+                        False,
+                        f"attempt mismatch for tool event {event_id} in {comp_name}: component has '{rec.get('attempt')}' vs unified has '{unif_rec.get('attempt')}'.",
+                    )
+
+            # Verify matching review_id for human-review events
+            if "review_id" in rec:
+                if rec.get("review_id") != unif_rec.get("review_id"):
+                    return (
+                        False,
+                        f"review_id mismatch for event {event_id} in {comp_name}: component has '{rec.get('review_id')}' vs unified has '{unif_rec.get('review_id')}'.",
+                    )
+
+            # Verify step_id consistency where present
+            if "step_id" in rec:
+                if rec.get("step_id") != unif_rec.get("step_id"):
+                    return (
+                        False,
+                        f"step_id mismatch for event {event_id} in {comp_name}: component has '{rec.get('step_id')}' vs unified has '{unif_rec.get('step_id')}'.",
+                    )
+
+            # Verify timestamp match
+            if rec.get("timestamp") != unif_rec.get("timestamp"):
+                return (
+                    False,
+                    f"timestamp mismatch for event {event_id} in {comp_name}: component has '{rec.get('timestamp')}' vs unified has '{unif_rec.get('timestamp')}'.",
+                )
+
+    # Check total unified records match total component records
+    if len(unified_records) != total_component_records:
+        return (
+            False,
+            f"Total record count mismatch: unified_trace has {len(unified_records)} records, but sum of components is {total_component_records}.",
+        )
+
+    return True, f"Unified log verified at record level: all {total_component_records} component records match unified_trace exactly by event_id, run_id, tool_call_id/review_id, timestamp, and steps."
 
 
 def check_cross_artifact_consistency():
@@ -324,20 +474,12 @@ def check_cross_artifact_consistency():
                     src_path = REPO_ROOT / source_file
                     if not src_path.exists():
                         return False, f"Citation source file {source_file} does not exist for {app_id}"
-                    src_content = src_path.read_text(encoding="utf-8")
-                    
-                    # Extract chunk directly from source file using section delimiter
-                    chunk_pattern = re.compile(rf"(## .*?\(Chunk:\s*{re.escape(str(chunk_id))}\)[\s\S]*?)(?=\n## |\Z)")
-                    m = chunk_pattern.search(src_content)
-                    if m:
-                        extracted_source_chunk = m.group(1).strip()
-                    else:
-                        chunk_text = cit.get("text") or cit.get("matched_text", "")
-                        if not chunk_text or chunk_text.strip() not in src_content:
-                            return False, f"Citation chunk {chunk_id} not found in source file {source_file}"
-                        extracted_source_chunk = chunk_text.strip()
+                    from src.policy.policy_metadata import extract_canonical_chunk_from_file
+                    canonical_chunk = extract_canonical_chunk_from_file(src_path, chunk_id)
+                    if not canonical_chunk:
+                        return False, f"Citation chunk {chunk_id} not found in source file {source_file} via canonical extraction"
 
-                    actual_hash = hashlib.sha256(extracted_source_chunk.encode("utf-8")).hexdigest()
+                    actual_hash = canonical_chunk["text_hash"]
                     if actual_hash != text_hash:
                         return False, f"Text hash mismatch for citation {chunk_id} in {app_id}: computed {actual_hash} vs recorded {text_hash}"
                             

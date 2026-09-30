@@ -1,11 +1,14 @@
 {
   "application_id": "APP-STRESS-01",
-  "session_id": "SESSION-APP-STRESS-01-1790605379",
-  "run_id": "RUN-20260928194900",
+  "session_id": "SESSION-APP-STRESS-01-1790783644",
+  "run_id": "RUN-20260930211255",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
   "unable_reason": null,
+  "clarification_needed": false,
+  "clarification_question": null,
+  "clarification_response": null,
   "ai_recommendation": "APPROVE",
   "human_review_required": false,
   "final_decision": null,
@@ -125,6 +128,20 @@
       "score": 0.5596
     }
   ],
-  "rationale": "Rationale generation was unavailable. The recommendation below was produced entirely from the selected policy and deterministic underwriting rules.",
-  "timestamp": "2026-09-28T14:24:34.852506+00:00"
+  "routing_history": [
+    "input_guard",
+    "authorization_node",
+    "intent_classifier",
+    "supervisor",
+    "policy_agent",
+    "supervisor",
+    "eligibility_agent",
+    "supervisor",
+    "risk_agent",
+    "supervisor",
+    "decision_node",
+    "supervisor"
+  ],
+  "rationale": "The AI recommends **APPROVE (advisory)** with a calculated Debt\u2011to\u2011Income ratio of **25.0\u202f%**.  \nThis DTI is well below the 40.0\u202f% threshold established in **PL\u201107** and the applicant\u2019s monthly gross income meets the INR\u202f25,000 minimum required by **PL\u201115**.  \nAll mandatory documentation (identity proof and income statements) has been supplied per **PL\u201118**, so the application satisfies all eligibility, risk, and affordability criteria under policy v2.0.",
+  "timestamp": "2026-09-30T15:55:45.718000+00:00"
 }

@@ -20,17 +20,44 @@ from pathlib import Path
 import pandas as pd
 import tempfile
 
-# Patch Windows temporary directory cleanup to ignore open SQLite db locks during shutdown
-try:
-    _orig_cleanup = tempfile.TemporaryDirectory._cleanup
-    def _safe_cleanup(*args, **kwargs):
+import atexit
+
+# Scoped resource lifecycle and tracing shutdown helpers (Phase 10)
+# No global stdlib monkeypatching; failures are visible and diagnosable
+def shutdown_tracing(timeout_seconds: float = 2.0) -> None:
+    """Explicitly flushes and shuts down tracing providers without patching stdlib."""
+    global _tracer_provider, _phoenix_session
+    if _tracer_provider is not None:
+        tp = _tracer_provider
+        _tracer_provider = None
         try:
-            _orig_cleanup(*args, **kwargs)
-        except Exception:
-            pass
-    tempfile.TemporaryDirectory._cleanup = staticmethod(_safe_cleanup)
-except Exception:
-    pass
+            if hasattr(tp, "shutdown"):
+                tp.shutdown()
+        except Exception as e:
+            logger.warning("TracerProvider shutdown encountered error: %s", e)
+    if _phoenix_session is not None:
+        ps = _phoenix_session
+        _phoenix_session = None
+        try:
+            import phoenix as px
+            px.close_app()
+        except Exception as e:
+            try:
+                if hasattr(ps, "close"):
+                    ps.close()
+            except Exception:
+                pass
+            logger.warning("Phoenix session close encountered error: %s", e)
+
+atexit.register(shutdown_tracing)
+
+
+def safe_cleanup_temp_dir(temp_dir: tempfile.TemporaryDirectory) -> None:
+    """Explicitly cleans up a temporary directory with visible diagnostic reporting."""
+    try:
+        temp_dir.cleanup()
+    except Exception as e:
+        logger.warning("Failed to clean up temporary directory %s: %s", temp_dir, e)
 
 logger = logging.getLogger(__name__)
 
@@ -227,9 +254,10 @@ class ExecutionTracer:
         end_time: float,
         inputs: Dict[str, Any],
         outputs: Dict[str, Any],
-        run_id: str,
+        run_id: Optional[str] = None,
         step_id: Optional[str] = None,
         application_id: Optional[str] = None,
+        session_id: Optional[str] = None,
         error: Optional[str] = None,
         attributes: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
@@ -240,6 +268,15 @@ class ExecutionTracer:
         Phoenix OTEL spans are emitted automatically by LangChainInstrumentor.
         """
         from src.observability.span_sanitizer import sanitize_data
+        from src.context.execution_context import resolve_identity
+
+        ident = resolve_identity(
+            explicit_run_id=run_id,
+            explicit_session_id=session_id,
+            explicit_app_id=application_id,
+            explicit_step_id=step_id or f"step-{name}",
+            required=False,
+        )
 
         latency_ms = (end_time - start_time) * 1000.0
         span = {
@@ -249,9 +286,10 @@ class ExecutionTracer:
             "start_time": start_time,
             "end_time": end_time,
             "latency_ms": round(latency_ms, 2),
-            "run_id": run_id,
-            "step_id": step_id or f"step-{name}",
-            "application_id": application_id,
+            "run_id": ident["run_id"],
+            "session_id": ident["session_id"],
+            "step_id": ident["step_id"],
+            "application_id": ident["application_id"],
             "inputs": sanitize_data(inputs),
             "outputs": sanitize_data(outputs),
             "attributes": sanitize_data(attributes or {}),
@@ -388,18 +426,31 @@ def traced_node(name: str, span_kind: str, fn: Callable) -> Any:
     import inspect
     import concurrent.futures
     from langchain_core.runnables import RunnableLambda
+    from src.context.execution_context import ExecutionContext, set_current_context, reset_current_context
 
     is_async = inspect.iscoroutinefunction(fn)
 
     async def async_wrapper(state: Dict[str, Any]) -> Dict[str, Any]:
         start = time.time()
-        session_id = state.get("session_id", "RUN-UNKNOWN")
+        run_id = state.get("run_id") or state.get("session_id")
+        session_id = state.get("session_id") or run_id
         app_id = state.get("application_id", "APP-UNKNOWN")
+        if not run_id or run_id in {"default_run", "RUN-UNKNOWN"}:
+            raise ValueError(f"traced_node '{name}' encountered state with missing mandatory canonical run_id: got '{run_id}'")
+
+        ctx = ExecutionContext(
+            run_id=run_id,
+            session_id=session_id,
+            application_id=app_id,
+            step_id=f"step-{name}",
+        )
+        token = set_current_context(ctx)
+
         try:
             if is_async:
                 result = await fn(state)
             else:
-                result = fn(state)
+                result = await asyncio.to_thread(fn, state)
             end = time.time()
             tracer.record_span(
                 name=name,
@@ -408,7 +459,8 @@ def traced_node(name: str, span_kind: str, fn: Callable) -> Any:
                 end_time=end,
                 inputs={"application_id": app_id, "step_count": state.get("step_count", 0), "intent": state.get("intent")},
                 outputs={"request_status": result.get("request_status"), "ai_recommendation": result.get("ai_recommendation")},
-                run_id=session_id,
+                run_id=run_id,
+                session_id=session_id,
                 application_id=app_id,
                 step_id=f"step-{name}",
             )
@@ -422,21 +474,35 @@ def traced_node(name: str, span_kind: str, fn: Callable) -> Any:
                 end_time=end,
                 inputs={"application_id": app_id},
                 outputs={"error": str(e)},
-                run_id=session_id,
+                run_id=run_id,
+                session_id=session_id,
                 application_id=app_id,
                 step_id=f"step-{name}",
                 error=str(e),
             )
             raise
+        finally:
+            reset_current_context(token)
 
     def sync_wrapper(state: Dict[str, Any]) -> Dict[str, Any]:
         start = time.time()
-        session_id = state.get("session_id", "RUN-UNKNOWN")
+        run_id = state.get("run_id") or state.get("session_id")
+        session_id = state.get("session_id") or run_id
         app_id = state.get("application_id", "APP-UNKNOWN")
+        if not run_id or run_id in {"default_run", "RUN-UNKNOWN"}:
+            raise ValueError(f"traced_node '{name}' encountered state with missing mandatory canonical run_id: got '{run_id}'")
+
+        ctx = ExecutionContext(
+            run_id=run_id,
+            session_id=session_id,
+            application_id=app_id,
+            step_id=f"step-{name}",
+        )
+        token = set_current_context(ctx)
+
         try:
             if is_async:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    result = pool.submit(lambda: asyncio.run(fn(state))).result()
+                result = asyncio.run(fn(state))
             else:
                 result = fn(state)
             end = time.time()
@@ -447,7 +513,8 @@ def traced_node(name: str, span_kind: str, fn: Callable) -> Any:
                 end_time=end,
                 inputs={"application_id": app_id, "step_count": state.get("step_count", 0), "intent": state.get("intent")},
                 outputs={"request_status": result.get("request_status"), "ai_recommendation": result.get("ai_recommendation")},
-                run_id=session_id,
+                run_id=run_id,
+                session_id=session_id,
                 application_id=app_id,
                 step_id=f"step-{name}",
             )
@@ -461,11 +528,14 @@ def traced_node(name: str, span_kind: str, fn: Callable) -> Any:
                 end_time=end,
                 inputs={"application_id": app_id},
                 outputs={"error": str(e)},
-                run_id=session_id,
+                run_id=run_id,
+                session_id=session_id,
                 application_id=app_id,
                 step_id=f"step-{name}",
                 error=str(e),
             )
             raise
+        finally:
+            reset_current_context(token)
 
     return RunnableLambda(sync_wrapper, afunc=async_wrapper)

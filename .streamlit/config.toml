@@ -1,15 +1,13 @@
 [server]
 headless = false
-enableCORS = false
-enableXsrf = false
 enableWebsocketCompression = false
 
 [theme]
-base = "dark"
-primaryColor = "#38BDF8"
-backgroundColor = "#0F172A"
-secondaryBackgroundColor = "#1E293B"
-textColor = "#F8FAFC"
+base = "light"
+primaryColor = "#2563EB"
+backgroundColor = "#F8FAFC"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0F172A"
 font = "sans serif"
 
 [browser]

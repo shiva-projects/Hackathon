@@ -1,137 +1,29 @@
 {
   "application_id": "APP-003",
-  "session_id": "SESSION-APP-003-1790605217",
-  "run_id": "RUN-20260928194900",
+  "session_id": "SESSION-APP-003-1790783345",
+  "run_id": "RUN-20260930211255",
   "request_status": "COMPLETED",
   "refusal_reason": null,
-  "decision_status": "DETERMINED",
+  "decision_status": "N/A",
   "unable_reason": null,
-  "ai_recommendation": "DECLINE",
-  "human_review_required": true,
+  "clarification_needed": false,
+  "clarification_question": null,
+  "clarification_response": null,
+  "ai_recommendation": null,
+  "human_review_required": false,
   "final_decision": null,
   "review_id": null,
-  "affordability": {
-    "dti": 0.066667,
-    "disposable_income": 140000.0,
-    "breach": false,
-    "threshold": 0.4,
-    "monthly_gross_income": 150000.0,
-    "monthly_obligations": 10000.0
-  },
-  "risk_flags": [
-    {
-      "rule_id": "PL-DOC-02",
-      "flag": "MISSING_MANDATORY_DOCUMENT",
-      "severity": "CRITICAL",
-      "message": "Mandatory document missing: income_statement"
-    }
+  "affordability": {},
+  "risk_flags": [],
+  "policy_selected": {},
+  "policy_citations": [],
+  "routing_history": [
+    "input_guard",
+    "authorization_node",
+    "intent_classifier",
+    "supervisor",
+    "document_node"
   ],
-  "policy_selected": {
-    "policy_id": "PL-001",
-    "version": "v2.0",
-    "product": "personal_loan",
-    "jurisdiction": "IN",
-    "effective_from": "2026-01-01",
-    "effective_to": "2026-12-31",
-    "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
-    "rule_count": 7,
-    "rules": [
-      {
-        "rule_id": "PL-07",
-        "rule_type": "dti_max",
-        "value": 0.4,
-        "operator": "<=",
-        "unit": "ratio"
-      },
-      {
-        "rule_id": "PL-12",
-        "rule_type": "loan_amount_max",
-        "value": 1500000.0,
-        "operator": "<=",
-        "unit": "amount"
-      },
-      {
-        "rule_id": "PL-15",
-        "rule_type": "minimum_income",
-        "value": 25000.0,
-        "operator": ">=",
-        "unit": "monthly_amount"
-      },
-      {
-        "rule_id": "PL-18",
-        "rule_type": "minimum_tenure",
-        "value": 6,
-        "operator": ">=",
-        "unit": "months"
-      },
-      {
-        "rule_id": "PL-19",
-        "rule_type": "high_value_review",
-        "value": 2500000.0,
-        "operator": ">=",
-        "unit": "amount"
-      },
-      {
-        "rule_id": "PL-DOC-01",
-        "rule_type": "required_document",
-        "value": "identity_proof",
-        "operator": "contains",
-        "unit": "document"
-      },
-      {
-        "rule_id": "PL-DOC-02",
-        "rule_type": "required_document",
-        "value": "income_statement",
-        "operator": "contains",
-        "unit": "document"
-      }
-    ]
-  },
-  "policy_citations": [
-    {
-      "policy_id": "PL-001",
-      "version": "v2.0",
-      "rule_id": "PL-07",
-      "rule_ids": [
-        "PL-07"
-      ],
-      "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
-      "chunk_id": "chunk-dti-002",
-      "text_hash": "b6517d92514322a459044fc90adddb62109d0ecd41dcd48446461ae433def513",
-      "text": "## Section 2: Affordability and Debt-to-Income (Chunk: chunk-dti-002)\nApplicants must satisfy the debt-to-income (DTI) affordability threshold. Under Rule PL-07, the maximum permitted Debt-to-Income (DTI) ratio is 40.0% (0.40) of normalized monthly gross income. Applications exceeding 40.0% DTI shall not be automatically approved and must be referred to a senior credit officer for discretionary assessment.",
-      "score": 0.6953
-    },
-    {
-      "policy_id": "PL-001",
-      "version": "v2.0",
-      "rule_id": "PL-15",
-      "rule_ids": [
-        "PL-15",
-        "PL-12",
-        "PL-19"
-      ],
-      "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
-      "chunk_id": "chunk-limits-003",
-      "text_hash": "a9b171d26e08aa9bbfcb2f04939b73192c733d14a7d80083f72a2b5332390e7b",
-      "text": "## Section 3: Income and Loan Size Limits (Chunk: chunk-limits-003)\nUnder Rule PL-15, the minimum acceptable monthly gross income is INR 25,000. The standard maximum unsecured loan amount is INR 1,500,000 under Rule PL-12. Loans requested at or above INR 2,500,000 trigger mandatory enhanced underwriting review under Rule PL-19.",
-      "score": 0.5765
-    },
-    {
-      "policy_id": "PL-001",
-      "version": "v2.0",
-      "rule_id": "PL-18",
-      "rule_ids": [
-        "PL-18",
-        "PL-DOC-01",
-        "PL-DOC-02"
-      ],
-      "source_file": "data/policy_corpus/PL_retail_personal_loan_v2.md",
-      "chunk_id": "chunk-docs-004",
-      "text_hash": "0518601c9dbf930d4ac63d73a3234561650d8668e8101903473fa41ab304f9e8",
-      "text": "## Section 4: Tenure and Documentation (Chunk: chunk-docs-004)\nThe minimum permitted loan tenure is 6 months under Rule PL-18. All applicants must provide mandatory verified identity proof (Rule PL-DOC-01) and valid income documentation / bank statements (Rule PL-DOC-02). Failure to supply these documents results in mandatory eligibility decline.",
-      "score": 0.5596
-    }
-  ],
-  "rationale": "The AI recommendation is **DECLINE (Advisory)** under policy v2.0.  \nThe calculated debt\u2011to\u2011income ratio is **6.7\u202f%**, which is within the 40.0\u202f% threshold set by PL\u201107, but the application fails mandatory eligibility rule **PL\u2011DOC\u201102** because the required **income_statement** document is missing.  \nAccording to PL\u201118, the absence of mandatory income documentation triggers a mandatory eligibility decline, so the loan must be declined.",
-  "timestamp": "2026-09-28T14:20:49.834057+00:00"
+  "rationale": "Standard documentation required under retail lending policies includes verified identity proof (Aadhaar/PAN) and 6 months of bank income statements.",
+  "timestamp": "2026-09-30T15:50:22.787950+00:00"
 }

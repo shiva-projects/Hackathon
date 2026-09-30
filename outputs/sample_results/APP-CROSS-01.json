@@ -1,11 +1,14 @@
 {
   "application_id": "APP-CROSS-01",
-  "session_id": "SESSION-APP-CROSS-01-1790605474",
-  "run_id": "RUN-20260928194900",
+  "session_id": "SESSION-APP-CROSS-01-1790783745",
+  "run_id": "RUN-20260930211255",
   "request_status": "REFUSED",
   "refusal_reason": "CROSS_APPLICANT_ACCESS",
   "decision_status": "N/A",
   "unable_reason": null,
+  "clarification_needed": false,
+  "clarification_question": null,
+  "clarification_response": null,
   "ai_recommendation": null,
   "human_review_required": false,
   "final_decision": null,
@@ -14,6 +17,10 @@
   "risk_flags": [],
   "policy_selected": {},
   "policy_citations": [],
+  "routing_history": [
+    "input_guard",
+    "refusal_node"
+  ],
   "rationale": "Request refused: CROSS_APPLICANT_ACCESS.",
-  "timestamp": "2026-09-28T14:24:36.282661+00:00"
+  "timestamp": "2026-09-30T15:55:46.402317+00:00"
 }

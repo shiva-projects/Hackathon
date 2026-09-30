@@ -4,13 +4,12 @@
 - **System Name**: Loan Origination & Underwriting Copilot (BC-AAIE-HACK-02)
 
 ### Runtime Model
-- **Provider**: Groq (OpenAI-compatible endpoint `https://api.groq.com/openai/v1`)
-- **Primary Model**: `openai/gpt-oss-120b` (Input: $0.15 / 1M, Output: $0.60 / 1M tokens)
-- **Fallback Model**: `openai/gpt-oss-20b` (Input: $0.075 / 1M, Output: $0.30 / 1M tokens)
-- **Supported Alternative Provider**: Google Gemini API (`gemini`, model: `gemini-3.7-flash`, Input: $0.75 / 1M, Output: $3.75 / 1M tokens) supported when `LLM_PROVIDER=gemini` and `GEMINI_API_KEY` is provided. If `LLM_PROVIDER=groq` (default in submission) or if `GEMINI_API_KEY` is unconfigured, the Groq provider is resolved.
+- **Primary Provider**: Google Gemini API (`gemini`, model: `gemini-3.7-flash`, Input: $0.75 / 1M, Output: $3.75 / 1M tokens) configured as priority #1 in `config/model_config.json`.
+- **Fallback Provider**: Groq (OpenAI-compatible endpoint `https://api.groq.com/openai/v1`, primary fallback `openai/gpt-oss-120b`, secondary fallback `openai/gpt-oss-20b`) active as operational fallback for quota exhaustion or network isolation.
+- **Provider Hierarchy**: Follows `resolution_order: ["gemini", "groq"]`. When `GEMINI_API_KEY` is present, Gemini is selected automatically. Groq is utilized solely when Gemini credentials are absent or when transient rate limits trigger mid-run fallback.
 
 ### Evaluation Model
-- The same resolved provider/model configuration (`openai/gpt-oss-120b`) is used by `CopilotJudgeLLM` for DeepEval automated evaluation metrics.
+- Evaluated with Google Gemini (`gemini-3.7-flash`, fallback `openai/gpt-oss-120b`) via `CopilotJudgeLLM` for DeepEval automated evaluation metrics.
 
 ### Evidence & Traceability
 The exact provider and model for each evidence run are recorded deterministically in:

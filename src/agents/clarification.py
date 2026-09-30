@@ -15,6 +15,10 @@ async def clarification_node(state: LoanState) -> LoanState:
     Sets clarification_needed=True and pauses underwriting with request_status=IN_PROGRESS.
     """
     start_t = time.time()
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id in {"default_run", "RUN-MCP", "RUN-UNKNOWN"}:
+        raise ValueError("clarification_node requires canonical run_id in state")
+
     question = (
         "I can assess loan eligibility, compute affordability (DTI), and screen credit risk. "
         "Please share your loan application details or provide an application ID to proceed."
@@ -29,7 +33,6 @@ async def clarification_node(state: LoanState) -> LoanState:
     state["step_count"] += 1
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
 
     log_agent_action(
         actor="clarification_node",

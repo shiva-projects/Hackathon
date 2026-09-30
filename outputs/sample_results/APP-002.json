@@ -1,11 +1,14 @@
 {
   "application_id": "APP-002",
-  "session_id": "SESSION-APP-002-1790605202",
-  "run_id": "RUN-20260928194900",
+  "session_id": "SESSION-APP-002-1790783243",
+  "run_id": "RUN-20260930211255",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
   "unable_reason": null,
+  "clarification_needed": false,
+  "clarification_question": null,
+  "clarification_response": null,
   "ai_recommendation": "REFER",
   "human_review_required": true,
   "final_decision": null,
@@ -132,6 +135,20 @@
       "score": 0.5596
     }
   ],
+  "routing_history": [
+    "input_guard",
+    "authorization_node",
+    "intent_classifier",
+    "supervisor",
+    "policy_agent",
+    "supervisor",
+    "eligibility_agent",
+    "supervisor",
+    "risk_agent",
+    "supervisor",
+    "decision_node",
+    "supervisor"
+  ],
   "rationale": "AI recommendation: REFER (Advisory). Application flagged for underwriter review based on calculated DTI of 52.0%. Deterministic evaluation requires human assessment.",
-  "timestamp": "2026-09-28T14:20:17.791898+00:00"
+  "timestamp": "2026-09-30T15:49:05.465255+00:00"
 }

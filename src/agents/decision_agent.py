@@ -8,7 +8,7 @@ Per plan.md Section 3.2, 4.4, 14.6 & 14.17.
 import os
 import time
 from decimal import Decimal
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from src.state import LoanState, GEMINI_FALLBACK_RATIONALE
 from src.domain.models import AffordabilityResult, RuleEvaluationResult
 from src.domain.decisions import evaluate_underwriting_decision
@@ -29,7 +29,7 @@ def generate_llm_rationale(
     reasons: List[str],
     policy_version: str,
     citations: List[Dict[str, Any]],
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
 ) -> str:
     """
     Invokes the resolved LLM provider synchronously to explain the deterministic decision in prose.
@@ -54,7 +54,7 @@ async def agenerate_llm_rationale(
     reasons: List[str],
     policy_version: str,
     citations: List[Dict[str, Any]],
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     currency: str = "INR",
 ) -> str:
     """
@@ -127,7 +127,10 @@ async def adecision_agent_node(state: LoanState) -> LoanState:
     citations = state.get("policy_citations", [])
     app_facts = state.get("applicant_facts", {})
     currency = app_facts.get("currency", "INR")
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id in {"default_run", "RUN-MCP", "RUN-UNKNOWN"}:
+        raise ValueError("decision_node requires canonical run_id in state")
+
     raw_rationale = await agenerate_llm_rationale(
         recommendation=decision.ai_recommendation or "REFER",
         affordability=affordability,
@@ -160,7 +163,11 @@ async def adecision_agent_node(state: LoanState) -> LoanState:
     if langmem_tool is not None:
         state["_langmem_tool"] = getattr(langmem_tool, "name", "manage_memory")
         t_tool_0 = time.perf_counter()
-        invocation_result = langmem_tool.invoke({"applicant_id": applicant_id, "namespace": "profile"})
+        if hasattr(langmem_tool, "ainvoke"):
+            invocation_result = await langmem_tool.ainvoke({"applicant_id": applicant_id, "namespace": "profile"})
+        else:
+            import asyncio
+            invocation_result = await asyncio.to_thread(langmem_tool.invoke, {"applicant_id": applicant_id, "namespace": "profile"})
         t_tool_lat = round((time.perf_counter() - t_tool_0) * 1000.0, 2)
         log_tool_call(
             agent="decision_agent",
@@ -208,16 +215,7 @@ def decision_agent_node(state: LoanState) -> LoanState:
     Thin wrapper delegating canonically to adecision_agent_node.
     """
     import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(lambda: asyncio.run(adecision_agent_node(state))).result()
-    else:
-        return asyncio.run(adecision_agent_node(state))
+    return asyncio.run(adecision_agent_node(state))
 
 
 def decision_agent_node_sync(state: LoanState) -> LoanState:

@@ -5,6 +5,8 @@ Full Phoenix tracing instrumentation & load-bearing Supervisor orchestration.
 """
 
 import time
+import json
+from pathlib import Path
 from typing import Dict, Any, Literal
 from langgraph.graph import StateGraph, END
 from src.state import LoanState, assert_state_invariants
@@ -27,7 +29,9 @@ async def input_guard_node(state: LoanState) -> LoanState:
     start_t = time.time()
     raw_text = state.get("applicant_raw_text", "")
     app_id = state.get("application_id", "APP-UNKNOWN")
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id == "default_run":
+        raise ValueError("State is missing mandatory canonical 'run_id'")
     guard_result = await ascreen_input(raw_text, current_application_id=app_id, run_id=effective_run_id)
 
     state["routing_history"].append("input_guard")
@@ -68,7 +72,9 @@ async def authorization_node(state: LoanState) -> LoanState:
     if state.get("request_status") == "REFUSED":
         return state
 
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id == "default_run":
+        raise ValueError("State is missing mandatory canonical 'run_id'")
     requester_id = state.get("actor_id") or state.get("applicant_facts", {}).get("requester_id") or "UNKNOWN_REQUESTER"
     app_id = state.get("application_id", "")
 
@@ -117,7 +123,9 @@ async def supervisor_node(state: LoanState) -> LoanState:
     state["routing_history"].append("supervisor")
     state["step_count"] += 1
 
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id == "default_run":
+        raise ValueError("State is missing mandatory canonical 'run_id'")
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
 
     log_agent_action(
@@ -134,12 +142,59 @@ async def supervisor_node(state: LoanState) -> LoanState:
 
 
 async def status_node(state: LoanState) -> LoanState:
-    """Handles status_check intent without modifying decision fields."""
+    """
+    Handles status_check intent by reading stored application / checkpoint state
+    without manufacturing a COMPLETED status or evaluating new decisions.
+    Per plan.md Section 4.3 and Phase 7.
+    """
     state["routing_history"].append("status_node")
     state["step_count"] += 1
-    state["request_status"] = "COMPLETED"
     app_id = state.get("application_id")
-    state["rationale"] = f"Application {app_id} is currently in state {state.get('request_status')} with review status {state.get('human_review_required')}."
+
+    stored_data = None
+    if app_id:
+        result_file = Path(f"outputs/sample_results/{app_id}.json")
+        if result_file.exists():
+            try:
+                with open(result_file, "r", encoding="utf-8") as f:
+                    stored_data = json.load(f)
+            except Exception:
+                pass
+
+    session_id = state.get("session_id")
+    if not stored_data and session_id:
+        from src.memory.checkpoint_config import checkpoint_exists, load_checkpoint_state
+        if checkpoint_exists(session_id):
+            stored_data = load_checkpoint_state(session_id)
+
+    if stored_data:
+        stored_req_status = stored_data.get("request_status") or "IN_PROGRESS"
+        stored_dec_status = stored_data.get("decision_status") or "N/A"
+        stored_rec = stored_data.get("ai_recommendation")
+        stored_final = stored_data.get("final_decision")
+        stored_human = stored_data.get("human_review_required", False)
+        stored_rev_id = stored_data.get("review_id")
+
+        state["request_status"] = stored_req_status
+        state["decision_status"] = stored_dec_status
+        state["ai_recommendation"] = stored_rec
+        state["final_decision"] = stored_final
+        state["review_id"] = stored_rev_id
+        state["human_review_required"] = stored_human
+        state["rationale"] = (
+            f"Stored application status for {app_id}: "
+            f"request_status={stored_req_status}, decision_status={stored_dec_status}, "
+            f"ai_recommendation={stored_rec}, final_decision={stored_final}."
+        )
+    else:
+        # If no prior evaluated record exists, do NOT manufacture COMPLETED
+        state["request_status"] = "IN_PROGRESS"
+        state["decision_status"] = "N/A"
+        state["ai_recommendation"] = None
+        state["final_decision"] = None
+        state["review_id"] = None
+        state["rationale"] = f"No existing evaluated application record found for {app_id}. Application is currently in progress."
+
     return state
 
 
@@ -182,7 +237,9 @@ async def loop_guard_terminal_node(state: LoanState) -> LoanState:
     state["routing_history"].append("loop_guard_terminal")
     state["step_count"] += 1
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id == "default_run":
+        raise ValueError("State is missing mandatory canonical 'run_id'")
     log_agent_action(
         actor="loop_guard",
         action="recursion_limit_exceeded",

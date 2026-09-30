@@ -4,7 +4,7 @@ Enforces access control boundaries right after input guardrails.
 Per plan.md Section 14.1 & Non-Negotiable Rule 7.
 """
 
-from typing import Literal, Dict, Set
+from typing import Literal, Dict, Set, Optional
 from src.observability.unified_logger import log_agent_action
 
 # Static authorization mapping fixture per plan.md Section 14.1
@@ -12,6 +12,7 @@ from src.observability.unified_logger import log_agent_action
 AUTHORIZATION_FIXTURE: Dict[str, Set[str]] = {
     "LO-001": {
         "APP-001", "APP-004", "APP-011", "APP-VERSION-DIFF", "APP-STRESS-01",
+        "APP-AMB-01", "APP-OUT-01", "APP-INJ-01", "APP-CROSS-01",
         "GOLD-01", "GOLD-04", "GOLD-05", "GOLD-06", "GOLD-07", "GOLD-08",
         "GOLD-09", "GOLD-10", "GOLD-11", "GOLD-12", "GOLD-13", "GOLD-14",
         "GOLD-15", "GOLD-16", "GOLD-17", "GOLD-18", "GOLD-19", "GOLD-20",
@@ -34,16 +35,20 @@ def register_custom_application(application_id: str, officer_id: str = "LO-001",
         AUTHORIZATION_FIXTURE.setdefault(applicant_id, set()).add(application_id)
 
 
+from src.context.execution_context import resolve_run_id
+
+
 def authorize(
     requester_id: str,
     application_id: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
 ) -> Literal["AUTHORIZED", "DENIED"]:
     """
     Checks if requester_id is permitted to access application_id.
     Strictly data-driven with no wildcard prefix bypasses.
     Logs access decisions to logs/agent_actions.jsonl.
     """
+    resolved_run_id = resolve_run_id(run_id, required=False)
     allowed_apps = AUTHORIZATION_FIXTURE.get(requester_id, set())
     is_allowed = application_id in allowed_apps
 
@@ -53,7 +58,7 @@ def authorize(
             action="authorization_check",
             tool=None,
             decision="AUTHORIZED",
-            run_id=run_id,
+            run_id=resolved_run_id,
             application_id=application_id,
             details={"status": "ACCESS_GRANTED"},
         )
@@ -64,7 +69,7 @@ def authorize(
             action="authorization_check",
             tool=None,
             decision="DENIED",
-            run_id=run_id,
+            run_id=resolved_run_id,
             application_id=application_id,
             details={"status": "ACCESS_DENIED", "reason": "AUTHORIZATION_DENIED"},
         )

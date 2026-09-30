@@ -1,11 +1,14 @@
 {
   "application_id": "APP-011",
-  "session_id": "SESSION-APP-011-1790605316",
-  "run_id": "RUN-20260928194900",
+  "session_id": "SESSION-APP-011-1790783524",
+  "run_id": "RUN-20260930211255",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
   "unable_reason": null,
+  "clarification_needed": false,
+  "clarification_question": null,
+  "clarification_response": null,
   "ai_recommendation": "APPROVE",
   "human_review_required": false,
   "final_decision": null,
@@ -125,6 +128,20 @@
       "score": 0.5596
     }
   ],
-  "rationale": "The AI recommends **APPROVE (advisory)** with a calculated Debt\u2011to\u2011Income ratio of **20.0\u202f%**.  \nUnder policy v2.0, this DTI is well below the 40.0\u202f% threshold set in **PL\u201107** and the applicant\u2019s monthly gross income exceeds the INR\u202f25,000 minimum required by **PL\u201115**.  \nAll mandatory documentation has been supplied per **PL\u201118**, so the application satisfies the eligibility, risk, and affordability criteria of the current policy.",
-  "timestamp": "2026-09-28T14:22:59.253831+00:00"
+  "routing_history": [
+    "input_guard",
+    "authorization_node",
+    "intent_classifier",
+    "supervisor",
+    "policy_agent",
+    "supervisor",
+    "eligibility_agent",
+    "supervisor",
+    "risk_agent",
+    "supervisor",
+    "decision_node",
+    "supervisor"
+  ],
+  "rationale": "The AI underwriting model has issued an advisory **APPROVE** recommendation with a calculated Debt\u2011to\u2011Income ratio of **20.0%**.  \nThis DTI is well below the PL\u201107 affordability threshold of 40.0% and satisfies the income and loan\u2011size limits set by PL\u201115, while the applicant has supplied the mandatory identity and income documentation required by PL\u201118.  \nUnder policy **v2.0**, the application meets all eligibility, risk, and affordability criteria, supporting the advisory approval.",
+  "timestamp": "2026-09-30T15:54:04.031606+00:00"
 }

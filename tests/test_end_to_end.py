@@ -14,7 +14,8 @@ from src.memory.checkpoint_config import get_session_config, get_checkpointer
 def e2e_graph(tmp_path):
     db = tmp_path / "e2e_checkpoint.sqlite"
     checkpointer = get_checkpointer(str(db))
-    return build_loan_copilot_graph(checkpointer=checkpointer)
+    yield build_loan_copilot_graph(checkpointer=checkpointer)
+    checkpointer.close()
 
 
 def test_full_pipeline_end_to_end(e2e_graph):

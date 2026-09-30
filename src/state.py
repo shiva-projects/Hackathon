@@ -66,21 +66,35 @@ def create_initial_state(
     application_id: str,
     applicant_raw_text: str = "",
     applicant_facts: Optional[Dict[str, Any]] = None,
-    session_id: str = "default-session",
+    session_id: Optional[str] = None,
     intent: str = "new_application",
     actor_id: Optional[str] = None,
     actor_role: Optional[str] = None,
     run_id: Optional[str] = None,
 ) -> LoanState:
-    """Helper to initialize a clean LoanState."""
+    """
+    Helper to initialize a clean LoanState with canonical execution identities.
+
+    Semantic difference between run_id and session_id:
+    - session_id:
+        Represents the end-to-end conversation or applicant lifecycle session.
+        Persists across interruptions, clarifications, checkpoints, and process resumptions.
+    - run_id:
+        Represents a single continuous pipeline invocation or graph execution attempt.
+        Every log event, tool call, span, and review record MUST be bound to the exact run_id.
+    """
+    import uuid
+    canonical_run_id = run_id if (run_id and run_id != "default_run") else f"RUN-{uuid.uuid4().hex[:12].upper()}"
+    canonical_session_id = session_id if (session_id and session_id not in {"default-session", "RUN-UNKNOWN"}) else f"SESS-{uuid.uuid4().hex[:12].upper()}"
+
     return LoanState(
         actor_id=actor_id,
         actor_role=actor_role,
         application_id=application_id,
-        run_id=run_id,
+        run_id=canonical_run_id,
         applicant_raw_text=applicant_raw_text,
         applicant_facts=applicant_facts or {},
-        session_id=session_id,
+        session_id=canonical_session_id,
         intent=intent,
         clarification_needed=False,
         clarification_question=None,
@@ -112,6 +126,12 @@ def assert_state_invariants(state: LoanState) -> None:
     Validates state contract invariants (Section 3.1 & 3.4 of plan.md).
     Raises AssertionError on contract violations.
     """
+    # Contract 0: Canonical Execution Identity
+    run_id = state.get("run_id")
+    session_id = state.get("session_id")
+    assert run_id and run_id not in {"default_run", "RUN-MCP", "RUN-UNKNOWN"}, f"Invalid or missing canonical run_id: '{run_id}'"
+    assert session_id and session_id not in {"default-session", "RUN-UNKNOWN"}, f"Invalid or missing canonical session_id: '{session_id}'"
+
     request_status = state.get("request_status")
     assert request_status in VALID_REQUEST_STATUSES, f"Invalid request_status: {request_status}"
 
@@ -165,3 +185,4 @@ def assert_state_invariants(state: LoanState) -> None:
         assert state.get("review_id") is not None, (
             "final_decision is set but review_id is missing (violates human audit link)"
         )
+

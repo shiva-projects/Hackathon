@@ -477,42 +477,41 @@ def run_deepeval_metrics(
     eval_delay = float(os.getenv("EVAL_DELAY_SECONDS", "1.0"))
 
     # Evaluate all eligible golden test cases that produce rationales & policy citations
+    def measure_with_retry(metric, test_case, metric_name, case_idx):
+        last_exc = None
+        for attempt in range(4):
+            try:
+                metric.measure(test_case)
+                return float(metric.score)
+            except Exception as exc:
+                last_exc = exc
+                if attempt < 3:
+                    import time
+                    time.sleep(3.0 * (attempt + 1))
+        raise RuntimeError(
+            f"DeepEval {metric_name} failed on test case {case_idx}: {last_exc}. "
+            f"Evaluation failed loudly per rubric requirement."
+        ) from last_exc
+
     target_cases = test_cases
     for idx, tc in enumerate(target_cases, 1):
-        try:
-            hallucination_metric.measure(tc)
-            hallucination_scores.append(float(hallucination_metric.score))
-        except Exception as exc:
-            raise RuntimeError(
-                f"DeepEval HallucinationMetric failed on test case {idx}: {exc}. "
-                f"Evaluation failed loudly per rubric requirement."
-            ) from exc
+        print(f"  [DeepEval] Measuring case {idx}/{len(target_cases)}...", flush=True)
+        h_score = measure_with_retry(hallucination_metric, tc, "HallucinationMetric", idx)
+        hallucination_scores.append(h_score)
 
         if eval_delay > 0:
             import time
             time.sleep(eval_delay)
 
-        try:
-            faithfulness_metric.measure(tc)
-            faithfulness_scores.append(float(faithfulness_metric.score))
-        except Exception as exc:
-            raise RuntimeError(
-                f"DeepEval FaithfulnessMetric failed on test case {idx}: {exc}. "
-                f"Evaluation failed loudly per rubric requirement."
-            ) from exc
+        f_score = measure_with_retry(faithfulness_metric, tc, "FaithfulnessMetric", idx)
+        faithfulness_scores.append(f_score)
 
         if eval_delay > 0:
             import time
             time.sleep(eval_delay)
 
-        try:
-            answer_relevancy_metric.measure(tc)
-            answer_relevancy_scores.append(float(answer_relevancy_metric.score))
-        except Exception as exc:
-            raise RuntimeError(
-                f"DeepEval AnswerRelevancyMetric failed on test case {idx}: {exc}. "
-                f"Evaluation failed loudly per rubric requirement."
-            ) from exc
+        ar_score = measure_with_retry(answer_relevancy_metric, tc, "AnswerRelevancyMetric", idx)
+        answer_relevancy_scores.append(ar_score)
 
         if eval_delay > 0:
             import time
@@ -557,8 +556,9 @@ def run_evaluation(output_path: str = "reports/eval_report.json") -> Dict[str, A
     eval_run_id = f"EVAL-{datetime.now(timezone.utc):%Y%m%d%H%M%S}"
     results = []
 
-    for case in GOLDEN_SET:
+    for i, case in enumerate(GOLDEN_SET, 1):
         app_id = case["case_id"]
+        print(f"  [Eval] Running golden case {i}/{total_cases}: {app_id} - {case['name']}...", flush=True)
         state = create_initial_state(
             application_id=app_id,
             applicant_raw_text=case["input_text"],

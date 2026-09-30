@@ -278,18 +278,23 @@ def _calculate_backoff_and_wait(err: Exception, attempt: int) -> float:
             total_sec = mins * 60.0 + secs
             return min(total_sec + 0.5, 30.0)
         return min(2.5 * attempt, 15.0)
+    if "connection" in err_str or "timeout" in err_str or "network" in err_str or "failed to resolve" in err_str or "getaddrinfo" in err_str:
+        return min(2.0 * attempt, 10.0)
     return 0.1
 
 
 def invoke_with_resilience(
     prompt: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     config_path: str = "config/model_config.json",
     force_model: Optional[str] = None,
 ) -> str:
     """
     Synchronously executes an LLM prompt with bounded retry and request-scoped provider fallback.
     """
+    from src.context.execution_context import resolve_run_id
+    effective_run_id = resolve_run_id(run_id, required=False)
+
     config = load_model_config(config_path)
     retry_cfg = config.get("retry_before_provider_switch", {})
     max_attempts = int(retry_cfg.get("max_attempts_per_provider", 2))
@@ -321,7 +326,7 @@ def invoke_with_resilience(
                     future = pool.submit(curr_h.invoke_with_usage, prompt)
                     result, in_tok, out_tok, u_source = future.result(timeout=timeout_sec)
                 end_time = time.time()
-                _record_llm_call_metadata(current_provider, curr_h.model, prompt, result, start_time, end_time, run_id, in_tok, out_tok, u_source)
+                _record_llm_call_metadata(current_provider, curr_h.model, prompt, result, start_time, end_time, effective_run_id, in_tok, out_tok, u_source)
                 return result
             except Exception as e:
                 last_error = e
@@ -337,7 +342,7 @@ def invoke_with_resilience(
                             action="model_fallback",
                             tool="llm_model",
                             decision="FALLBACK_MODEL",
-                            run_id=run_id,
+                            run_id=effective_run_id,
                             details={
                                 "event": "model_fallback",
                                 "from_model": curr_h.model,
@@ -350,14 +355,15 @@ def invoke_with_resilience(
                             future = pool.submit(fb_h.invoke_with_usage, prompt)
                             result, in_tok, out_tok, u_source = future.result(timeout=timeout_sec)
                         end_time = time.time()
-                        _record_llm_call_metadata(current_provider, fb_h.model, prompt, result, start_time, end_time, run_id, in_tok, out_tok, u_source)
+                        _record_llm_call_metadata(current_provider, fb_h.model, prompt, result, start_time, end_time, effective_run_id, in_tok, out_tok, u_source)
                         return result
                     except Exception as inner_e:
                         last_error = inner_e
                         err_str = str(inner_e).lower()
                         is_rate_limit = "429" in err_str or "rate_limit" in err_str or "quota" in err_str
                 
-                max_allowed = 6 if is_rate_limit else max_attempts
+                is_conn_error = "connection" in err_str or "timeout" in err_str or "network" in err_str or "failed to resolve" in err_str or "getaddrinfo" in err_str
+                max_allowed = 6 if (is_rate_limit or is_conn_error) else max_attempts
                 if attempt >= max_allowed:
                     break
                 wait_sec = _calculate_backoff_and_wait(last_error, attempt)
@@ -378,7 +384,7 @@ def invoke_with_resilience(
                 action="provider_fallback",
                 tool="llm_provider",
                 decision="SWITCHED",
-                run_id=run_id,
+                run_id=effective_run_id,
                 details={
                     "event": "provider_fallback",
                     "from_provider": current_provider,
@@ -398,13 +404,16 @@ def invoke_with_resilience(
 
 async def ainvoke_with_resilience(
     prompt: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     config_path: str = "config/model_config.json",
     force_model: Optional[str] = None,
 ) -> str:
     """
     Asynchronously executes an LLM prompt with bounded retry and request-scoped provider fallback.
     """
+    from src.context.execution_context import resolve_run_id
+    effective_run_id = resolve_run_id(run_id, required=False)
+
     config = load_model_config(config_path)
     retry_cfg = config.get("retry_before_provider_switch", {})
     max_attempts = int(retry_cfg.get("max_attempts_per_provider", 2))
@@ -433,7 +442,7 @@ async def ainvoke_with_resilience(
             try:
                 result, in_tok, out_tok, u_source = await asyncio.wait_for(curr_h.ainvoke_with_usage(prompt), timeout=timeout_sec)
                 end_time = time.time()
-                _record_llm_call_metadata(current_provider, curr_h.model, prompt, result, start_time, end_time, run_id, in_tok, out_tok, u_source)
+                _record_llm_call_metadata(current_provider, curr_h.model, prompt, result, start_time, end_time, effective_run_id, in_tok, out_tok, u_source)
                 return result
             except Exception as e:
                 last_error = e
@@ -449,7 +458,7 @@ async def ainvoke_with_resilience(
                             action="model_fallback",
                             tool="llm_model",
                             decision="FALLBACK_MODEL",
-                            run_id=run_id,
+                            run_id=effective_run_id,
                             details={
                                 "event": "model_fallback",
                                 "from_model": curr_h.model,
@@ -460,14 +469,15 @@ async def ainvoke_with_resilience(
                         fb_h = get_llm_client(force_provider=current_provider, force_model=fb_model, config_path=config_path)
                         result, in_tok, out_tok, u_source = await asyncio.wait_for(fb_h.ainvoke_with_usage(prompt), timeout=timeout_sec)
                         end_time = time.time()
-                        _record_llm_call_metadata(current_provider, fb_h.model, prompt, result, start_time, end_time, run_id, in_tok, out_tok, u_source)
+                        _record_llm_call_metadata(current_provider, fb_h.model, prompt, result, start_time, end_time, effective_run_id, in_tok, out_tok, u_source)
                         return result
                     except Exception as inner_e:
                         last_error = inner_e
                         err_str = str(inner_e).lower()
                         is_rate_limit = "429" in err_str or "rate_limit" in err_str or "quota" in err_str
                 
-                max_allowed = 6 if is_rate_limit else max_attempts
+                is_conn_error = "connection" in err_str or "timeout" in err_str or "network" in err_str or "failed to resolve" in err_str or "getaddrinfo" in err_str
+                max_allowed = 6 if (is_rate_limit or is_conn_error) else max_attempts
                 if attempt >= max_allowed:
                     break
                 wait_sec = _calculate_backoff_and_wait(last_error, attempt)
@@ -488,7 +498,7 @@ async def ainvoke_with_resilience(
                 action="provider_fallback",
                 tool="llm_provider",
                 decision="SWITCHED",
-                run_id=run_id,
+                run_id=effective_run_id,
                 details={
                     "event": "provider_fallback",
                     "from_provider": current_provider,

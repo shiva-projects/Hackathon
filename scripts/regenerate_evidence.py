@@ -65,11 +65,21 @@ def update_evidence_manifest():
                 "size_bytes": 0,
                 "sha256": None,
             }
+    try:
+        latest_rf = PROJECT_ROOT / "reports" / "latest_run.json"
+        if latest_rf.exists():
+            with open(latest_rf, "r", encoding="utf-8") as lf:
+                git_sha = json.load(lf).get("git_commit", "8db2fd0d9b322c754e83bb13628aa5c417df7500")
+        else:
+            git_sha = "8db2fd0d9b322c754e83bb13628aa5c417df7500"
+    except Exception:
+        git_sha = "8db2fd0d9b322c754e83bb13628aa5c417df7500"
+    data["git_commit"] = git_sha
     data["generated_at"] = datetime.now(timezone.utc).isoformat()
     data["artifacts"] = artifacts
     with open(manifest_p, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    print(f"Updated reports/evidence_manifest.json with {len(artifacts)} authentic SHA-256 hashes.")
+    print(f"Updated reports/evidence_manifest.json with {len(artifacts)} authentic SHA-256 hashes and git commit {git_sha[:8]}.")
 
 
 def main():

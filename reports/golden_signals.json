@@ -1,35 +1,35 @@
 {
-  "generated_at": "2026-09-28T15:45:05.607968+00:00",
-  "source_run_id": "RUN-20260928194900",
+  "generated_at": "2026-09-30T17:28:04.761437+00:00",
+  "source_run_id": "RUN-20260930211255",
   "trace_source": "phoenix",
   "provider": "groq",
   "model": "openai/gpt-oss-120b",
   "latency_by_span_type": {
     "thinking": {
-      "p50_ms": 751.79,
-      "p95_ms": 4407.64,
-      "count": 101
+      "p50_ms": 1904.67,
+      "p95_ms": 9107.04,
+      "count": 163
     },
     "acting": {
-      "p50_ms": 20.13,
-      "p95_ms": 2433.05,
-      "count": 485
+      "p50_ms": 44.69,
+      "p95_ms": 4675.17,
+      "count": 514
     },
     "tool": {
-      "p50_ms": 4.13,
-      "p95_ms": 23.24,
-      "count": 78
+      "p50_ms": 1.68,
+      "p95_ms": 16.37,
+      "count": 84
     },
     "end_to_end": {
-      "p50_ms": 235.54,
-      "p95_ms": 12114.37,
-      "count": 134
+      "p50_ms": 1918.59,
+      "p95_ms": 18242.85,
+      "count": 176
     }
   },
   "token_usage": {
-    "input_tokens": 3836,
-    "output_tokens": 1529,
-    "total_tokens": 5365,
+    "input_tokens": 8285,
+    "output_tokens": 3339,
+    "total_tokens": 11624,
     "source": "measured"
   },
   "cost_governance": {
@@ -37,17 +37,17 @@
     "resolved_provider": "groq",
     "resolved_model": "openai/gpt-oss-120b",
     "pricing_source": "https://console.groq.com/docs/models",
-    "estimated_cost_usd": 0.000992
+    "estimated_cost_usd": 0.001865
   },
   "evaluation_metrics": {
     "routing_accuracy": 1.0,
-    "recommendation_accuracy": 1.0,
+    "recommendation_accuracy": 0.9167,
     "policy_selection_accuracy": 1.0,
     "citation_resolution": 1.0,
     "state_invariant_pass_rate": 1.0,
     "pii_leakage_rate": 0.0,
-    "hallucination_rate": 0.0,
-    "faithfulness": 1.0,
+    "hallucination_rate": 0.0476,
+    "faithfulness": 0.8665,
     "answer_relevance": 1.0,
     "deepeval_method": "DeepEval(judge=groq:openai/gpt-oss-120b)",
     "deepeval_cases_evaluated": 14

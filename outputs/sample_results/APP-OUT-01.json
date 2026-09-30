@@ -1,11 +1,14 @@
 {
   "application_id": "APP-OUT-01",
-  "session_id": "SESSION-APP-OUT-01-1790605477",
-  "run_id": "RUN-20260928194900",
+  "session_id": "SESSION-APP-OUT-01-1790783747",
+  "run_id": "RUN-20260930211255",
   "request_status": "REFUSED",
-  "refusal_reason": "AUTHORIZATION_DENIED",
+  "refusal_reason": "OUT_OF_SCOPE",
   "decision_status": "N/A",
   "unable_reason": null,
+  "clarification_needed": false,
+  "clarification_question": null,
+  "clarification_response": null,
   "ai_recommendation": null,
   "human_review_required": false,
   "final_decision": null,
@@ -14,6 +17,13 @@
   "risk_flags": [],
   "policy_selected": {},
   "policy_citations": [],
-  "rationale": "Request refused: AUTHORIZATION_DENIED.",
-  "timestamp": "2026-09-28T14:24:40.079911+00:00"
+  "routing_history": [
+    "input_guard",
+    "authorization_node",
+    "intent_classifier",
+    "supervisor",
+    "refusal_node"
+  ],
+  "rationale": "Request refused: OUT_OF_SCOPE.",
+  "timestamp": "2026-09-30T15:57:22.554122+00:00"
 }

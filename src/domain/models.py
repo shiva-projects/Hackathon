@@ -15,6 +15,35 @@ class RecommendationType(str, Enum):
     DECLINE = "DECLINE"
 
 
+class HumanDecision(str, Enum):
+    APPROVE = "APPROVE"
+    REFER = "REFER"
+    DECLINE = "DECLINE"
+
+
+class IntentType(str, Enum):
+    NEW_APPLICATION = "new_application"
+    STATUS_CHECK = "status_check"
+    DOCUMENT_QUESTION = "document_question"
+    POLICY_QUESTION = "policy_question"
+    AMBIGUOUS = "ambiguous"
+    OUT_OF_SCOPE = "out_of_scope"
+    SECURITY_SENSITIVE = "security_sensitive"
+
+
+class IntentClassificationResult(BaseModel):
+    intent: IntentType = Field(..., description="Classified user intent")
+    reasoning: Optional[str] = Field(None, description="Optional classification justification")
+
+
+class HumanReviewSubmission(BaseModel):
+    application_id: str = Field(..., min_length=3, max_length=50, description="Target application ID")
+    reviewer_id: str = Field(..., min_length=1, description="Reviewer employee/officer ID")
+    decision: HumanDecision = Field(..., description="Binding human decision: APPROVE, REFER, or DECLINE")
+    review_reason: str = Field(..., min_length=5, description="Non-empty justification for the human decision")
+    conditions: Optional[List[str]] = Field(None, description="Optional conditions precedent")
+
+
 class RuleType(str, Enum):
     DTI_MAX = "dti_max"
     LOAN_AMOUNT_MAX = "loan_amount_max"

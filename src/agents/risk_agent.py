@@ -20,6 +20,9 @@ async def arisk_agent_node(state: LoanState) -> LoanState:
     Async LangGraph node: Evaluates risk rules against applicant facts and affordability results.
     """
     start_t = time.time()
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id in {"default_run", "RUN-MCP", "RUN-UNKNOWN"}:
+        raise ValueError("risk_agent requires canonical run_id in state")
 
     # 0. Context engineering: Select and isolate agent context
     agent_ctx = select_agent_context("risk_agent", state)
@@ -49,7 +52,6 @@ async def arisk_agent_node(state: LoanState) -> LoanState:
     state["step_count"] += 1
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
 
     log_agent_action(
         actor="risk_agent",
@@ -67,16 +69,7 @@ async def arisk_agent_node(state: LoanState) -> LoanState:
 def risk_agent_node(state: LoanState) -> LoanState:
     """Synchronous entry point for tests/legacy callers."""
     import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(lambda: asyncio.run(arisk_agent_node(state))).result()
-    else:
-        return asyncio.run(arisk_agent_node(state))
+    return asyncio.run(arisk_agent_node(state))
 
 
 def risk_agent_node_sync(state: LoanState) -> LoanState:

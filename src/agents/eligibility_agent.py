@@ -6,11 +6,12 @@ Per plan.md Section 4.4 & 4.5.
 
 import time
 from src.state import LoanState
-from mcp_server.client import MCPClient
+from mcp_server.client import MCPClient, MCPUnavailableError
 from src.observability.unified_logger import log_agent_action
 from src.context.select import select_agent_context
 from src.context.isolate import verify_context_isolation
 from src.context.write import write_verified_fact
+from src.resilience.fallback import handle_mcp_failure
 
 
 async def aeligibility_agent_node(state: LoanState) -> LoanState:
@@ -18,6 +19,9 @@ async def aeligibility_agent_node(state: LoanState) -> LoanState:
     Async LangGraph node: Computes DTI and disposable income via async MCP tool call.
     """
     start_t = time.time()
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id in {"default_run", "RUN-MCP", "RUN-UNKNOWN"}:
+        raise ValueError("eligibility_agent requires canonical run_id in state")
 
     # 0. Context engineering: Select and isolate agent context
     agent_ctx = select_agent_context("eligibility_agent", state)
@@ -35,20 +39,30 @@ async def aeligibility_agent_node(state: LoanState) -> LoanState:
     dti_rule = next((r for r in rules if r.get("rule_type") == "dti_max"), None)
     dti_max_threshold = float(dti_rule.get("value", 0.40)) if dti_rule else 0.40
 
-    # Call async MCP tool
-    aff_res = await MCPClient.acall_compute_affordability(
-        income_amount=income_amount,
-        income_period=income_period,
-        existing_obligations=existing_obligations,
-        dti_max_threshold=dti_max_threshold,
-    )
+    # Call async MCP tool with fail-closed error handling
+    try:
+        aff_res = await MCPClient.acall_compute_affordability(
+            income_amount=income_amount,
+            income_period=income_period,
+            existing_obligations=existing_obligations,
+            dti_max_threshold=dti_max_threshold,
+            run_id=effective_run_id,
+            step_id="step-mcp-compute-affordability",
+            application_id=state.get("application_id"),
+        )
+    except (MCPUnavailableError, Exception) as exc:
+        state["routing_history"].append("eligibility_agent_error")
+        return handle_mcp_failure(
+            state,
+            error_message=f"MCP compute_affordability failed: {exc}",
+            run_id=effective_run_id,
+        )
 
     state["affordability"] = aff_res
     state["routing_history"].append("eligibility_agent")
     state["step_count"] += 1
 
     latency_ms = round((time.time() - start_t) * 1000.0, 2)
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
 
     log_agent_action(
         actor="eligibility_agent",
@@ -66,16 +80,7 @@ async def aeligibility_agent_node(state: LoanState) -> LoanState:
 def eligibility_agent_node(state: LoanState) -> LoanState:
     """Synchronous entry point for tests/legacy callers."""
     import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(lambda: asyncio.run(aeligibility_agent_node(state))).result()
-    else:
-        return asyncio.run(aeligibility_agent_node(state))
+    return asyncio.run(aeligibility_agent_node(state))
 
 
 def eligibility_agent_node_sync(state: LoanState) -> LoanState:

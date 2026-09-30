@@ -140,7 +140,7 @@ def screen_output(
     seeded_pii_literals: Optional[List[str]] = None,
     dti: Optional[Decimal] = None,
     expected_currency: str = "INR",
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     span_id: Optional[str] = None,
 ) -> str:
     """
@@ -151,6 +151,9 @@ def screen_output(
        If contradictory, fails closed: replaces contradictory prose with build_deterministic_rationale.
     4. Enforces jurisdiction currency consistency.
     """
+    from src.context.execution_context import resolve_run_id
+    effective_run_id = resolve_run_id(run_id, required=False)
+
     # Step 1: PII Scrubbing
     sanitized = sanitize_text(rationale)
     if seeded_pii_literals:
@@ -171,12 +174,12 @@ def screen_output(
             action="blocked_and_replaced",
             tool=None,
             decision="CONTRADICTION_REPLACED",
-            run_id=run_id,
+            run_id=effective_run_id,
             details={
                 "guardrail": "numeric_consistency",
                 "action": "blocked_and_replaced",
                 "reason": reason,
-                "run_id": run_id,
+                "run_id": effective_run_id,
                 "span_id": span_id,
                 "ai_recommendation": ai_recommendation,
                 "dti": str(dti) if dti is not None else None,

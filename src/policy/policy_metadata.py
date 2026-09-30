@@ -49,6 +49,58 @@ class PolicyDocument:
         }
 
 
+def extract_canonical_chunks_from_prose(
+    prose_content: str,
+    policy_id: str,
+    version: str,
+    source_file: str,
+) -> List[Dict[str, Any]]:
+    """
+    Canonical source-section extraction function.
+    Splits policy markdown prose into discrete sections/chunks using the ## section header delimiter,
+    extracts chunk_id (or assigns deterministic fallback), computes SHA-256 of canonical text,
+    and returns chunk metadata.
+    """
+    chunks = []
+    sections = re.split(r"\n(?=##\s+)", prose_content)
+    for idx, sec in enumerate(sections):
+        sec_text = sec.strip()
+        if not sec_text:
+            continue
+        chunk_id_match = re.search(r"\(Chunk:\s*([\w\-]+)\)", sec_text)
+        if chunk_id_match:
+            chunk_id = chunk_id_match.group(1)
+        else:
+            chunk_id = f"{policy_id.lower()}-{version.replace('.', '')}-chunk-{idx+1:03d}"
+
+        text_hash = hashlib.sha256(sec_text.encode("utf-8")).hexdigest()
+        chunks.append({
+            "chunk_id": chunk_id,
+            "policy_id": policy_id,
+            "version": version,
+            "source_file": source_file,
+            "text": sec_text,
+            "text_hash": text_hash,
+        })
+    return chunks
+
+
+def extract_canonical_chunks_from_file(file_path: str | Path) -> Dict[str, Dict[str, Any]]:
+    """
+    Extracts all chunks from a policy markdown file in canonical form, mapped by chunk_id.
+    """
+    doc = parse_policy_file(file_path)
+    return {c["chunk_id"]: c for c in doc.chunks}
+
+
+def extract_canonical_chunk_from_file(file_path: str | Path, chunk_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Extracts a specific chunk by chunk_id from a policy file using canonical extraction.
+    """
+    chunks = extract_canonical_chunks_from_file(file_path)
+    return chunks.get(chunk_id)
+
+
 def parse_policy_file(file_path: str | Path) -> PolicyDocument:
     """Parses a markdown policy file with YAML frontmatter."""
     path = Path(file_path)
@@ -72,30 +124,13 @@ def parse_policy_file(file_path: str | Path) -> PolicyDocument:
     effective_to = metadata["effective_to"]
     rules = metadata.get("rules", [])
 
-    # Extract chunks from prose sections
-    chunks = []
-    # Pattern to look for ## Section headers with optional chunk annotations
-    sections = re.split(r"\n(?=##\s+)", prose_content)
-    for idx, sec in enumerate(sections):
-        sec_text = sec.strip()
-        if not sec_text:
-            continue
-        chunk_id_match = re.search(r"\(Chunk:\s*([\w\-]+)\)", sec_text)
-        if chunk_id_match:
-            chunk_id = chunk_id_match.group(1)
-        else:
-            chunk_id = f"{policy_id.lower()}-{version.replace('.', '')}-chunk-{idx+1:03d}"
-
-        # Clean text hash for verification
-        text_hash = hashlib.sha256(sec_text.encode("utf-8")).hexdigest()
-        chunks.append({
-            "chunk_id": chunk_id,
-            "policy_id": policy_id,
-            "version": version,
-            "source_file": str(path.as_posix()),
-            "text": sec_text,
-            "text_hash": text_hash,
-        })
+    # Canonical source extraction
+    chunks = extract_canonical_chunks_from_prose(
+        prose_content=prose_content,
+        policy_id=policy_id,
+        version=version,
+        source_file=str(path.as_posix()),
+    )
 
     return PolicyDocument(
         policy_id=policy_id,

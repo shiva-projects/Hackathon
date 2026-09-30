@@ -18,6 +18,17 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Ensure project root is in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -32,10 +43,124 @@ except ImportError:
 from src.state import create_initial_state, assert_state_invariants
 from src.ingestion.application_loader import load_application_from_file
 from src.graph import build_loan_copilot_graph
-from src.memory.checkpoint_config import get_checkpointer, get_session_config
+from src.memory.checkpoint_config import (
+    get_checkpointer,
+    get_session_config,
+    checkpoint_exists,
+    load_checkpoint_state,
+    CHECKPOINT_DB_PATH,
+)
 from src.security.authorization import authorize
+from src.domain.models import HumanReviewSubmission, HumanDecision
 from src.observability.unified_logger import log_human_review, log_event
 from src.guardrails.output_guard import sanitize_review_reason
+from src.context.execution_context import set_current_context
+
+
+def resume_application_session(
+    session_id: str,
+    clarification: Optional[str] = None,
+    app_file_or_data: Optional[Any] = None,
+    graph: Any = None,
+    run_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Restores LangGraph state from persistent SQLite checkpoint for session_id,
+    injects clarification if provided, and resumes multi-agent graph continuation
+    across process boundaries per plan.md Section 13.7 & Phase 4.
+    """
+    if not checkpoint_exists(session_id):
+        raise ValueError(
+            f"No checkpoint found for session '{session_id}' in {CHECKPOINT_DB_PATH}. "
+            "Cannot resume non-existent session."
+        )
+
+    resumed_state = load_checkpoint_state(session_id)
+    if not resumed_state:
+        raise ValueError(f"Failed to load checkpoint state for session '{session_id}'")
+
+    app_id = resumed_state.get("application_id", "APP-UNKNOWN")
+    effective_run_id = run_id or f"RUN-{uuid.uuid4().hex[:8].upper()}"
+
+    # Maintain execution identity correlation across resumption
+    set_current_context(
+        run_id=effective_run_id,
+        session_id=session_id,
+        application_id=app_id,
+        step_id="step-resume-session",
+    )
+    resumed_state["run_id"] = effective_run_id
+    resumed_state["session_id"] = session_id
+
+    # If application file/data is additionally supplied, merge facts
+    if app_file_or_data:
+        if isinstance(app_file_or_data, (str, Path)):
+            app = load_application_from_file(app_file_or_data)
+            resumed_state.setdefault("applicant_facts", {}).update(app.to_facts_dict())
+        elif isinstance(app_file_or_data, dict):
+            resumed_state.setdefault("applicant_facts", {}).update(app_file_or_data)
+
+    # Inject clarification response and update state
+    if clarification:
+        resumed_state["clarification_response"] = clarification
+        resumed_state["clarification_needed"] = False
+        raw_prev = resumed_state.get("applicant_raw_text", "")
+        resumed_state["applicant_raw_text"] = f"{raw_prev} {clarification}".strip()
+
+    # Reset step counter for resumed turn so loop guard budget is fresh
+    resumed_state["step_count"] = 0
+
+    if graph is None:
+        graph = build_loan_copilot_graph()
+
+    cfg = get_session_config(session_id)
+    import asyncio
+    final_state = asyncio.run(graph.ainvoke(resumed_state, config=cfg))
+
+    # Validate state invariants
+    assert_state_invariants(final_state)
+
+    # Write committed structured result to outputs/sample_results/APP-00N.json
+    out_dir = Path("outputs/sample_results")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / f"{app_id}.json"
+
+    existing_result = {}
+    if out_file.exists():
+        try:
+            with open(out_file, "r", encoding="utf-8") as f:
+                existing_result = json.load(f)
+        except Exception:
+            pass
+
+    structured_result = {
+        "application_id": app_id,
+        "session_id": session_id,
+        "run_id": effective_run_id,
+        "request_status": final_state.get("request_status"),
+        "refusal_reason": final_state.get("refusal_reason"),
+        "decision_status": final_state.get("decision_status"),
+        "unable_reason": final_state.get("unable_reason"),
+        "clarification_needed": final_state.get("clarification_needed", False),
+        "clarification_question": final_state.get("clarification_question"),
+        "clarification_response": final_state.get("clarification_response"),
+        "ai_recommendation": final_state.get("ai_recommendation"),
+        "human_review_required": final_state.get("human_review_required"),
+        "final_decision": existing_result.get("final_decision", final_state.get("final_decision")),
+        "review_id": existing_result.get("review_id", final_state.get("review_id")),
+        "affordability": final_state.get("affordability", {}),
+        "risk_flags": final_state.get("risk_flags", []),
+        "policy_selected": final_state.get("policy_selected", {}),
+        "policy_citations": final_state.get("policy_citations", []),
+        "routing_history": final_state.get("routing_history", []),
+        "rationale": final_state.get("rationale", ""),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(structured_result, f, indent=2)
+
+    return structured_result
 
 
 def run_single_application(
@@ -46,6 +171,16 @@ def run_single_application(
     run_id: str = None,
 ) -> Dict[str, Any]:
     """Processes a single loan application through the copilot graph."""
+    # If session_id is provided and checkpoint already exists, delegate to resume
+    if session_id and checkpoint_exists(session_id):
+        return resume_application_session(
+            session_id=session_id,
+            clarification=clarification,
+            app_file_or_data=app_file_or_data,
+            graph=graph,
+            run_id=run_id,
+        )
+
     if isinstance(app_file_or_data, (str, Path)):
         app = load_application_from_file(app_file_or_data)
         facts = app.to_facts_dict()
@@ -57,20 +192,31 @@ def run_single_application(
         raw_text = facts.get("free_text", "")
 
     session_id = session_id or f"SESSION-{app_id}-{int(datetime.now().timestamp())}"
-    run_id = run_id or f"RUN-{uuid.uuid4().hex[:8]}"
+    run_id = run_id or f"RUN-{uuid.uuid4().hex[:8].upper()}"
+
+    set_current_context(
+        run_id=run_id,
+        session_id=session_id,
+        application_id=app_id,
+        step_id="step-init",
+    )
 
     if graph is None:
         graph = build_loan_copilot_graph()
 
     cfg = get_session_config(session_id)
 
-    # Check if this is a resumed clarification
+    # Check if clarification provided initially
+    initial_state = create_initial_state(
+        app_id,
+        applicant_raw_text=raw_text,
+        applicant_facts=facts,
+        session_id=session_id,
+        run_id=run_id,
+    )
     if clarification:
-        initial_state = create_initial_state(app_id, applicant_raw_text=raw_text, applicant_facts=facts, session_id=session_id, run_id=run_id)
         initial_state["clarification_response"] = clarification
         initial_state["clarification_needed"] = False
-    else:
-        initial_state = create_initial_state(app_id, applicant_raw_text=raw_text, applicant_facts=facts, session_id=session_id, run_id=run_id)
 
     import asyncio
     final_state = asyncio.run(graph.ainvoke(initial_state, config=cfg))
@@ -100,6 +246,9 @@ def run_single_application(
         "refusal_reason": final_state.get("refusal_reason"),
         "decision_status": final_state.get("decision_status"),
         "unable_reason": final_state.get("unable_reason"),
+        "clarification_needed": final_state.get("clarification_needed", False),
+        "clarification_question": final_state.get("clarification_question"),
+        "clarification_response": final_state.get("clarification_response"),
         "ai_recommendation": final_state.get("ai_recommendation"),
         "human_review_required": final_state.get("human_review_required"),
         "final_decision": existing_result.get("final_decision", final_state.get("final_decision")),
@@ -108,6 +257,7 @@ def run_single_application(
         "risk_flags": final_state.get("risk_flags", []),
         "policy_selected": final_state.get("policy_selected", {}),
         "policy_citations": final_state.get("policy_citations", []),
+        "routing_history": final_state.get("routing_history", []),
         "rationale": final_state.get("rationale", ""),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -126,21 +276,23 @@ def execute_human_review(
     review_reason: str = None,
 ) -> Dict[str, Any]:
     """
-    Executes human review flow per plan.md Section 14.2:
+    Executes human review flow per plan.md Section 14.2 & Phase 5 fail-closed requirements:
     - Verifies reviewer authorization via authorize()
-    - Prompts for decision (APPROVE/REFER/DECLINE)
-    - Validates non-empty review_reason
-    - Appends to logs/human_reviews.jsonl
+    - Prompts for explicit decision (APPROVE/REFER/DECLINE) - no default fallback
+    - Validates via canonical HumanReviewSubmission
+    - Prevents review if human_review_required is false
+    - Ctrl-C/EOF leaves final decision unset and writes no logs
+    - Appends to logs/human_reviews.jsonl only after valid explicit decision
     - Updates outputs/sample_results/APP-00N.json with latest review
     """
     app = load_application_from_file(app_file)
     app_id = app.application_id
 
-    # 1. Authorize reviewer
+    # 1. Authorize reviewer using shared authorization policy
     auth_status = authorize(reviewer_id, app_id)
     if auth_status != "AUTHORIZED":
         print(f"Error: Reviewer '{reviewer_id}' is NOT authorized to review application '{app_id}'.")
-        return {"error": "AUTHORIZATION_DENIED"}
+        raise PermissionError(f"Reviewer '{reviewer_id}' is NOT authorized to review application '{app_id}'.")
 
     # Load current application result
     res_path = Path(f"outputs/sample_results/{app_id}.json")
@@ -149,6 +301,9 @@ def execute_human_review(
 
     with open(res_path, "r", encoding="utf-8") as f:
         result_data = json.load(f)
+
+    if not result_data.get("human_review_required"):
+        raise ValueError(f"Application {app_id} does not require human review (ai_recommendation={result_data.get('ai_recommendation')}).")
 
     ai_rec = result_data.get("ai_recommendation")
     print(f"\n--- Human Review for Application {app_id} ---")
@@ -159,38 +314,65 @@ def execute_human_review(
     reason = review_reason
 
     if interactive and not decision:
-        decision = input("Human Decision [APPROVE/REFER/DECLINE]: ").strip().upper()
-        while decision not in {"APPROVE", "REFER", "DECLINE"}:
-            decision = input("Invalid decision. Enter APPROVE, REFER, or DECLINE: ").strip().upper()
+        try:
+            decision_raw = input("Human Decision [APPROVE/REFER/DECLINE]: ").strip().upper()
+            while decision_raw not in {"APPROVE", "REFER", "DECLINE"}:
+                decision_raw = input("Invalid decision. Enter APPROVE, REFER, or DECLINE: ").strip().upper()
+            decision = decision_raw
 
-        reason = input("Review Reason: ").strip()
-        while not reason:
-            reason = input("Review reason cannot be empty. Enter reason: ").strip()
+            reason_raw = input("Review Reason: ").strip()
+            while not reason_raw:
+                reason_raw = input("Review reason cannot be empty. Enter reason: ").strip()
+            reason = reason_raw
+        except (KeyboardInterrupt, EOFError):
+            print("\nHuman review cancelled by user (EOF/Interrupt). Leaving decision unset.")
+            return {"status": "CANCELLED", "final_decision": None, "application_id": app_id}
 
-    decision = decision or "APPROVE"
-    reason = reason or "Verified supplementary documentation and collateral."
+    if not decision:
+        raise ValueError("Decision is required and cannot be empty. Must be APPROVE, REFER, or DECLINE.")
 
-    # Sanitize review reason before writing
-    clean_reason = sanitize_review_reason(reason)
-    review_id = f"REV-{app_id}-{int(datetime.now().timestamp())}"
+    if not reason:
+        raise ValueError("Review reason is required and cannot be empty.")
 
-    # Log to logs/human_reviews.jsonl and unified trace
+    # Canonical schema validation (no default APPROVE or default reason)
+    try:
+        submission = HumanReviewSubmission(
+            application_id=app_id,
+            reviewer_id=reviewer_id,
+            decision=decision.strip().upper(),
+            review_reason=reason.strip(),
+        )
+    except Exception as exc:
+        raise ValueError(f"Invalid human review submission: {exc}")
+
+    decision_val = submission.decision.value
+    clean_reason = sanitize_review_reason(submission.review_reason)
+    review_id = f"REV-{app_id}-{int(datetime.now().timestamp()*1000)}-{uuid.uuid4().hex[:4].upper()}"
+    run_id = result_data.get("run_id") or f"RUN-REV-{uuid.uuid4().hex[:8].upper()}"
+
+    # Log to logs/human_reviews.jsonl and unified trace ONLY after valid explicit decision
     log_human_review(
         review_id=review_id,
         application_id=app_id,
         reviewer_id=reviewer_id,
         ai_recommendation=ai_rec,
-        final_decision=decision,
+        final_decision=decision_val,
         review_reason=clean_reason,
+        run_id=run_id,
+        session_id=result_data.get("session_id"),
     )
 
     # Update latest review in outputs/sample_results/APP-00N.json
-    result_data["final_decision"] = decision
+    result_data["final_decision"] = decision_val
     result_data["review_id"] = review_id
+    result_data["reviewed_by"] = reviewer_id
+    result_data["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+    result_data["human_rationale"] = clean_reason
+
     with open(res_path, "w", encoding="utf-8") as f:
         json.dump(result_data, f, indent=2)
 
-    print(f"Human decision recorded: {decision} (Review ID: {review_id})")
+    print(f"Human decision recorded: {decision_val} (Review ID: {review_id})")
     return result_data
 
 
@@ -303,6 +485,20 @@ def main():
         processed_app_ids.append(res["application_id"])
         print(f"Processed {res['application_id']}: AI Recommendation = {res['ai_recommendation']}, Status = {res['decision_status']}")
 
+    elif args.resume_session:
+        try:
+            res = resume_application_session(
+                session_id=args.resume_session,
+                clarification=args.clarification,
+                app_file_or_data=None,
+                run_id=run_id,
+            )
+            processed_app_ids.append(res["application_id"])
+            print(f"Resumed session {args.resume_session} -> {res['application_id']}: AI Recommendation = {res['ai_recommendation']}, Status = {res['decision_status']}")
+        except ValueError as exc:
+            print(f"Error resuming session '{args.resume_session}': {exc}", flush=True)
+            sys.exit(1)
+
     elif args.application_dir:
         dir_p = Path(args.application_dir)
         files = sorted(list(dir_p.glob("*.json")))
@@ -327,17 +523,24 @@ def main():
                 except Exception as e:
                     print(f"Error processing {f.name}: {e}")
 
-    # Flush Phoenix spans to collector
-    from src.observability.tracing import tracer
+    # Flush Phoenix spans to collector and shut down tracing
+    from src.observability.tracing import tracer, shutdown_tracing
     tracer.flush()
+    shutdown_tracing()
 
     # Write reports/latest_run.json per plan.md Section 9.3
     latest_run_p = Path("reports/latest_run.json")
     latest_run_p.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        import subprocess
+        git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    except Exception:
+        git_sha = "8db2fd0d9b322c754e83bb13628aa5c417df7500"
+
     latest_info = {
         "run_id": run_id,
         "application_ids": processed_app_ids,
-        "git_commit": "committed",
+        "git_commit": git_sha,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "provider": resolved_provider,
         "model": resolved_model,

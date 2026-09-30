@@ -1,15 +1,18 @@
 {
   "application_id": "APP-004",
-  "session_id": "SESSION-APP-004-1790605249",
-  "run_id": "RUN-20260928194900",
+  "session_id": "SESSION-APP-004-1790783422",
+  "run_id": "RUN-20260930211255",
   "request_status": "COMPLETED",
   "refusal_reason": null,
   "decision_status": "DETERMINED",
   "unable_reason": null,
-  "ai_recommendation": "REFER",
+  "clarification_needed": false,
+  "clarification_question": null,
+  "clarification_response": null,
+  "ai_recommendation": "DECLINE",
   "human_review_required": true,
-  "final_decision": "APPROVE",
-  "review_id": "REV-APP-004-1790430179",
+  "final_decision": "DECLINE",
+  "review_id": "REV-APP-004-1790778575667-5703",
   "affordability": {
     "dti": 0.08,
     "disposable_income": 230000.0,
@@ -22,7 +25,7 @@
     {
       "rule_id": "PL-12",
       "flag": "LOAN_AMOUNT_EXCEEDED",
-      "severity": "HIGH",
+      "severity": "CRITICAL",
       "message": "Requested amount 3000000.0 exceeds maximum allowed 1500000.0"
     },
     {
@@ -138,6 +141,20 @@
       "score": 0.5596
     }
   ],
-  "rationale": "Rationale generation was unavailable. The recommendation below was produced entirely from the selected policy and deterministic underwriting rules.",
-  "timestamp": "2026-09-28T14:21:56.027298+00:00"
+  "routing_history": [
+    "input_guard",
+    "authorization_node",
+    "intent_classifier",
+    "supervisor",
+    "policy_agent",
+    "supervisor",
+    "eligibility_agent",
+    "supervisor",
+    "risk_agent",
+    "supervisor",
+    "decision_node",
+    "supervisor"
+  ],
+  "rationale": "The system has generated an advisory recommendation of **DECLINE** for this application, with a calculated Debt\u2011to\u2011Income ratio of **8.0\u202f%**.  \nThe decline is triggered by mandatory eligibility rule **PL\u201112**, which limits unsecured loan amounts to INR\u202f1,500,000, and by rule **PL\u201119**, which requires enhanced underwriting review for loan amounts at or above INR\u202f2,500,000; the requested INR\u202f3,000,000 exceeds both thresholds.  \nAlthough the applicant\u2019s DTI of 8.0\u202f% is within the acceptable limit of 40.0\u202f% under rule **PL\u201107**, the loan amount exceeds the policy limits, so the application must be declined per policy **v2.0**.",
+  "timestamp": "2026-09-30T15:52:04.666685+00:00"
 }

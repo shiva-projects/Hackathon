@@ -46,17 +46,15 @@ def select_applicable_policy(
     """
     if resource_manifest is None:
         try:
-            from mcp_server.client import MCPClient
+            from mcp_server.client import MCPClient, MCPUnavailableError
             resource_manifest = MCPClient.read_resource_manifest()
-        except Exception:
-            resource_manifest = None
-
-        if resource_manifest is None:
-            path = Path(manifest_path)
-            if not path.exists():
-                raise FileNotFoundError(f"Policy manifest not found: {manifest_path}")
-            with open(path, "r", encoding="utf-8") as f:
-                resource_manifest = json.load(f)
+        except (MCPUnavailableError, Exception) as exc:
+            return PolicySelectionResult(
+                status="NO_APPLICABLE_POLICY",
+                policy=None,
+                reason=f"MCP_RESOURCE_UNAVAILABLE: {exc}",
+                candidate_ids=[],
+            )
 
     policies_dict = resource_manifest.get("policies", {})
     candidate_ids = list(policies_dict.keys())

@@ -42,8 +42,9 @@ def test_seeded_pii_is_redacted_at_write_time(tmp_path, monkeypatch):
         decision="REVIEWED",
         details={"credit_id": SEEDED_PII["credit_id"], "phone": SEEDED_PII["phone"]},
     )
+    import uuid
     log_human_review(
-        review_id="REV-TEST-PII",
+        review_id=f"REV-TEST-PII-{uuid.uuid4().hex[:8].upper()}",
         application_id="APP-TEST-PII",
         reviewer_id="LO-001",
         ai_recommendation="REFER",

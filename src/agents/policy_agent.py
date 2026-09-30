@@ -8,10 +8,11 @@ import time
 from src.state import LoanState
 from src.policy.policy_selector import select_applicable_policy
 from src.tools.rag_tool import retrieve_policy_chunks, aretrieve_policy_chunks
-from mcp_server.client import MCPClient
+from mcp_server.client import MCPClient, MCPUnavailableError
 from src.observability.unified_logger import log_agent_action
 from src.context.select import select_agent_context
 from src.context.isolate import verify_context_isolation
+from src.resilience.fallback import handle_mcp_failure
 
 
 async def apolicy_agent_node(state: LoanState) -> LoanState:
@@ -20,6 +21,9 @@ async def apolicy_agent_node(state: LoanState) -> LoanState:
     and retrieves relevant chunks asynchronously via targeted RAG.
     """
     start_t = time.time()
+    effective_run_id = state.get("run_id")
+    if not effective_run_id or effective_run_id in {"default_run", "RUN-MCP", "RUN-UNKNOWN"}:
+        raise ValueError("policy_agent requires canonical run_id in state")
 
     # 0. Context engineering: Select and isolate agent context
     agent_ctx = select_agent_context("policy_agent", state)
@@ -50,15 +54,19 @@ async def apolicy_agent_node(state: LoanState) -> LoanState:
         await MCPClient.acall_get_policy_document(
             policy_id=selected_policy["policy_id"],
             version=selected_policy["version"],
+            run_id=effective_run_id,
+            step_id="step-mcp-get-policy-document",
+            application_id=state.get("application_id"),
         )
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(
-            f"MCP policy document fetch failed for policy {selected_policy.get('policy_id')}:{selected_policy.get('version')}: {e}. Proceeding with local RAG retrieval."
+    except (MCPUnavailableError, Exception) as exc:
+        state["routing_history"].append("policy_agent_error")
+        return handle_mcp_failure(
+            state,
+            error_message=f"MCP policy document fetch failed: {exc}",
+            run_id=effective_run_id,
         )
 
     # 3. Async Targeted RAG retrieval within selected policy only
-    effective_run_id = state.get("run_id") or state.get("session_id", "default_run")
     query = f"{product} affordability DTI loan limits documents"
     citations = await aretrieve_policy_chunks(
         query=query,
@@ -95,16 +103,7 @@ async def apolicy_agent_node(state: LoanState) -> LoanState:
 def policy_agent_node(state: LoanState) -> LoanState:
     """Synchronous entry point for tests/legacy callers."""
     import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop and loop.is_running():
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(lambda: asyncio.run(apolicy_agent_node(state))).result()
-    else:
-        return asyncio.run(apolicy_agent_node(state))
+    return asyncio.run(apolicy_agent_node(state))
 
 
 def policy_agent_node_sync(state: LoanState) -> LoanState:

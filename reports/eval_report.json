@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-09-28T12:08:11.843485+00:00",
-  "run_id": "EVAL-20260928203000",
+  "generated_at": "2026-09-30T17:27:45.071572+00:00",
+  "run_id": "EVAL-20260930171352",
   "total_test_cases": 20,
   "live_key_present": true,
   "provider": "groq",
   "model": "openai/gpt-oss-120b",
   "metrics": {
     "routing_accuracy": 1.0,
-    "recommendation_accuracy": 1.0,
+    "recommendation_accuracy": 0.9167,
     "policy_selection_accuracy": 1.0,
     "citation_resolution": 1.0,
     "state_invariant_pass_rate": 1.0,
     "pii_leakage_rate": 0.0,
-    "hallucination_rate": 0.0,
-    "faithfulness": 1.0,
+    "hallucination_rate": 0.0476,
+    "faithfulness": 0.8665,
     "answer_relevance": 1.0,
     "deepeval_method": "DeepEval(judge=groq:openai/gpt-oss-120b)",
     "deepeval_cases_evaluated": 14
@@ -25,7 +25,7 @@
     },
     "recommendation_accuracy": {
       "min": 1.0,
-      "pass": true
+      "pass": false
     },
     "policy_selection_accuracy": {
       "min": 1.0,
@@ -65,7 +65,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "Under Policy v2.0, the deterministic evaluation yields an advisory recommendation of APPROVE, as the applicant\u2019s calculated Debt-to-Income (DTI) ratio of 20.8% is well within the maximum permitted threshold of 40.0% defined by Rule PL-07. This outcome confirms that the application satisfies all eligibility, risk, and affordability criteria, including the minimum income requirement of INR 25,000 specified in Rule PL-15.",
+        "rationale": "The AI advisory recommends **APPROVE** the loan, noting a calculated Debt\u2011to\u2011Income ratio of **20.8\u202f%**, which is well below the maximum 40.0\u202f% threshold set out in Policy\u202fv2.0\u202f\u2013\u202fRule\u202fPL\u201107. The application also meets all other eligibility, risk and affordability requirements, including the minimum monthly gross income of INR\u202f25,000 (Rule\u202fPL\u201115) and the required documentation (Rule\u202fPL\u201118). Consequently, the DTI breach status is \u201cWithin Acceptable Limits,\u201d and no senior\u2011credit or enhanced\u2011underwriting review is triggered.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -121,7 +121,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine has issued an advisory recommendation of **REFER** because the applicant's calculated Debt-to-Income (DTI) ratio of **52.0%** exceeds the maximum permitted threshold of 40.0% established under Policy v2.0, Rule PL-07. Consequently, the application cannot be automatically approved and must be referred to a senior credit officer for discretionary assessment in accordance with the specified affordability guidelines.\n[Correction: Official deterministic assessment is REFER based on calculated DTI of 52.0%].",
+        "rationale": "AI recommendation: REFER (Advisory). Application flagged for underwriter review based on calculated DTI of 52.0%. Deterministic evaluation requires human assessment.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -177,7 +177,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine has issued an advisory recommendation to DECLINE this application under Policy v2.0, noting a calculated Debt-to-Income (DTI) ratio of 0.0%. This outcome is mandated by Rule PL-DOC-02, which requires valid income documentation; the system identified the mandatory 'income_statement' as missing, triggering a mandatory eligibility decline. Consequently, the application cannot proceed to further affordability assessment until the required verified income documents are submitted.",
+        "rationale": "The AI advisory recommends **DECLINE** for this application, noting a calculated Debt\u2011to\u2011Income (DTI) of **0.0\u202f%**, which is within the 40\u202f% affordability limit set by Policy v2.0\u202f[PL\u201107]; however, the mandatory income documentation required by Rule\u202fPL\u2011DOC\u201102 (and reiterated in Rule\u202fPL\u201118) is missing, triggering an automatic eligibility decline. Because the required\u202f*income_statement*\u202fhas not been provided, the application cannot satisfy the mandatory eligibility criteria and must be declined per the policy.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -229,11 +229,11 @@
       "case_id": "GOLD-04",
       "name": "High value loan enhanced review",
       "route_ok": true,
-      "recommendation_ok": true,
+      "recommendation_ok": false,
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic system has issued an advisory **REFER** recommendation based on a calculated Debt-to-Income (DTI) ratio of 8.0%, which is well within the 40.0% limit specified by Policy v2.0 (Rule PL-07). However, the requested loan amount of INR 3,000,000 exceeds the standard maximum unsecured limit of INR 1,500,000 (Rule PL-12) and triggers a mandatory enhanced underwriting review because it surpasses the INR 2,500,000 threshold (Rule PL-19). Consequently, the application requires manual review by a senior credit officer to assess the high-value risk factors.",
+        "rationale": "The AI advisory recommendation is **DECLINE**, with a calculated Debt\u2011to\u2011Income (DTI) of **8.0%**, which is well below the 40% affordability threshold set out in Policy\u202fv2.0\u202fRule\u202fPL\u201107. The requested loan amount of **INR\u202f3,000,000** exceeds the standard maximum unsecured loan limit of **INR\u202f1,500,000** under Rule\u202fPL\u201112 and also surpasses the INR\u202f2,500,000 high\u2011value trigger defined in Rule\u202fPL\u201119, both of which mandate an eligibility decline. Consequently, under Policy\u202fv2.0 the application must be declined and referred for senior underwriter review.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -289,7 +289,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "Application GOLD-05 is currently in state COMPLETED with review status False.",
+        "rationale": "Stored application status for GOLD-05: request_status=IN_PROGRESS, decision_status=N/A, ai_recommendation=None, final_decision=None.",
         "policy_citations": []
       }
     },
@@ -430,18 +430,7 @@
             "chunk_id": "chunk-dti-v1-001",
             "text_hash": "37947644b5e07d391da504744c3de9a9543114d159f3092cc86cbde87815a7fb",
             "text": "## Section 2: Affordability Criteria (Chunk: chunk-dti-v1-001)\nUnder expired Rule PL-07-v1, the maximum permitted Debt-to-Income (DTI) ratio was 40% with a maximum loan ceiling of INR 1,000,000.",
-            "score": 3.0
-          },
-          {
-            "policy_id": "PL-001",
-            "version": "v1.0",
-            "rule_id": "PL-GENERAL",
-            "rule_ids": [],
-            "source_file": "data/policy_corpus/PL_retail_personal_loan_v1.md",
-            "chunk_id": "pl-001-v10-chunk-001",
-            "text_hash": "3e042d4df5f71c036c03561431cab4fc960c1a298e3ae1b5adb6f55a51d37546",
-            "text": "# Personal Lending Underwriting Policy (v1.0 - Expired) - India Retail Banking",
-            "score": 0.0
+            "score": 0.736
           },
           {
             "policy_id": "PL-001",
@@ -452,7 +441,18 @@
             "chunk_id": "pl-001-v10-chunk-002",
             "text_hash": "dfb22cea13f601352b4be114d517678dc623b3c039d32cb93754e232d0e0fa46",
             "text": "## Section 1: Overview\nHistorical personal lending guidelines for calendar year 2025. This policy expired on December 31, 2025 and is no longer valid for 2026 applications.",
-            "score": 0.0
+            "score": 0.5241
+          },
+          {
+            "policy_id": "PL-001",
+            "version": "v1.0",
+            "rule_id": "PL-GENERAL",
+            "rule_ids": [],
+            "source_file": "data/policy_corpus/PL_retail_personal_loan_v1.md",
+            "chunk_id": "pl-001-v10-chunk-001",
+            "text_hash": "3e042d4df5f71c036c03561431cab4fc960c1a298e3ae1b5adb6f55a51d37546",
+            "text": "# Personal Lending Underwriting Policy (v1.0 - Expired) - India Retail Banking",
+            "score": 0.4828
           }
         ]
       }
@@ -465,7 +465,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "Under Policy v2.0, the deterministic evaluation yields an advisory recommendation of APPROVE, as the applicant\u2019s calculated Debt-to-Income (DTI) ratio of 25.0% is well within the maximum permitted threshold of 40.0% specified in Rule PL-07. This outcome confirms that the application satisfies all eligibility, risk, and affordability criteria, including the minimum income requirement of INR 25,000 under Rule PL-15, without triggering any mandatory referrals for discretionary assessment.",
+        "rationale": "The AI advisory recommendation is **APPROVE**, with a calculated Debt\u2011to\u2011Income (DTI) ratio of **25.0%**, which is comfortably below the 40.0% maximum permitted under Policy\u202fv2.0\u202fRule\u202fPL\u201107. The application also meets the minimum monthly gross income of INR\u202f25,000 and stays under the INR\u202f2,500,000 enhanced\u2011review trigger, satisfying the income and loan\u2011size limits of Rules\u202fPL\u201115 and PL\u201112, and all required identity and income documents are present per Rule\u202fPL\u201118. Consequently, the deterministic underwriting assessment indicates the loan is within acceptable limits under the applicable policy.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -521,7 +521,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine has issued an advisory recommendation of **REFER** because the applicant's calculated Debt-to-Income (DTI) ratio of **56.2%** exceeds the maximum permitted threshold of 40.0% established under Policy v2.0, Rule PL-07. Consequently, the application cannot be automatically approved and must be referred to a senior credit officer for discretionary assessment in accordance with the specified affordability guidelines.\n[Correction: Official deterministic assessment is REFER based on calculated DTI of 56.2%].",
+        "rationale": "AI recommendation: REFER (Advisory). Application flagged for underwriter review based on calculated DTI of 56.2%. Deterministic evaluation requires human assessment.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -577,7 +577,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "Under Policy v2.0, the deterministic evaluation yields an advisory recommendation of APPROVE, as the applicant\u2019s calculated Debt-to-Income (DTI) ratio of 5.0% is well within the maximum permitted threshold of 40.0% defined by Rule PL-07. This outcome confirms that the application satisfies all eligibility, risk, and affordability criteria, including the minimum income requirement of INR 25,000 specified in Rule PL-15.",
+        "rationale": "The AI advisory recommends **APPROVE** and the calculated Debt\u2011to\u2011Income ratio is **5.0\u202f%**, which is well below the maximum 40.0\u202f% threshold defined in Policy\u202fv2.0\u202f\u2013\u202fRule\u202fPL\u201107, so the DTI breach status is \u201cWithin Acceptable Limits.\u201d Because the application also satisfies the minimum monthly gross income requirement (\u2265\u202fINR\u202f25,000) and the requested loan amount is below the INR\u202f2,500,000 trigger for enhanced review (Rule\u202fPL\u201115), and all required identity and income documents are present (Rule\u202fPL\u201118), the deterministic assessment under Policy\u202fv2.0 is to proceed with approval on an advisory basis.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -633,7 +633,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine has issued an advisory recommendation of **REFER** because the applicant's calculated Debt-to-Income (DTI) ratio of **53.3%** exceeds the maximum permitted threshold of 40.0% established under Policy v2.0, Rule PL-07. Consequently, the application cannot be automatically approved and must be referred to a senior credit officer for discretionary assessment in accordance with the specified affordability guidelines.\n[Correction: Official deterministic assessment is REFER based on calculated DTI of 53.3%].",
+        "rationale": "AI recommendation: REFER (Advisory). Application flagged for underwriter review based on calculated DTI of 53.3%. Deterministic evaluation requires human assessment.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -689,7 +689,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine has issued an advisory recommendation to DECLINE the application under Policy v2.0, noting a calculated Debt-to-Income ratio of 0.0% which is within acceptable limits. This outcome is mandated by Rule PL-DOC-01, which requires verified identity proof for all applicants; the absence of this mandatory document triggers an automatic eligibility decline regardless of affordability metrics.",
+        "rationale": "AI recommendation: DECLINE (Advisory). The application does not satisfy underwriting thresholds, with a calculated DTI of 0.0%. Deterministic policy rules prevent automated approval.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -745,7 +745,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "Under Policy v2.0, the deterministic evaluation yields an advisory recommendation of APPROVE, as the applicant\u2019s calculated Debt-to-Income (DTI) ratio of 11.5% is well within the maximum permitted threshold of 40.0% defined by Rule PL-07. This result confirms that the application satisfies all eligibility, risk, and affordability criteria, including the minimum income requirement of INR 25,000 specified in Rule PL-15.",
+        "rationale": "The AI system issues an advisory recommendation to **APPROVE** the loan, with a calculated Debt\u2011to\u2011Income (DTI) ratio of **11.5%**. This DTI is well below the 40.0% maximum permitted under Policy\u202fv2.0\u202fRule\u202fPL\u201107, and the application also satisfies the minimum monthly gross income (\u2265\u202fINR\u202f25,000) and loan\u2011size limits (requested amount below INR\u202f2,500,000) set out in Rules\u202fPL\u201115 and PL\u201112, as well as the documentation and tenure requirements of Rule\u202fPL\u201118. Consequently, the deterministic underwriting assessment flags the file as **within acceptable limits** under the applicable policy.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -801,7 +801,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "The deterministic underwriting engine has issued an advisory recommendation of **REFER** because the applicant's calculated Debt-to-Income (DTI) ratio of **54.5%** exceeds the maximum permitted threshold of 40.0% established under Policy v2.0, Rule PL-07. Consequently, the application cannot be automatically approved and must be referred to a senior credit officer for discretionary assessment in accordance with the specified affordability guidelines.\n[Correction: Official deterministic assessment is REFER based on calculated DTI of 54.5%].",
+        "rationale": "The underwriting engine issued a **REFER (Advisory)** recommendation because the applicant\u2019s calculated debt\u2011to\u2011income (DTI) ratio is **54.5\u202f%**, which exceeds the **40.0\u202f%** maximum permitted under Policy\u202fv2.0, Rule\u202fPL\u201107. Accordingly, any application with a DTI above this threshold must be referred to a senior credit officer for discretionary assessment. No other policy breaches (e.g., income minimum, loan\u2011size limits, tenure) were identified in this evaluation.",
         "policy_citations": [
           {
             "policy_id": "PL-001",
@@ -857,7 +857,7 @@
       "policy_selection_ok": true,
       "state_invariants_pass": true,
       "_state": {
-        "rationale": "Under Policy v2.0, the deterministic evaluation yields an advisory recommendation of APPROVE, as the applicant\u2019s calculated Debt-to-Income (DTI) ratio of 11.1% is well within the maximum permitted threshold of 40.0% defined by Rule PL-07. This result confirms that the application satisfies all eligibility, risk, and affordability criteria, including the minimum income requirement of INR 25,000 under Rule PL-15.",
+        "rationale": "AI recommendation: APPROVE (Advisory). The application satisfies all policy thresholds with a verified DTI of 11.1%. Deterministic evaluation indicates the loan meets affordability criteria.",
         "policy_citations": [
           {
             "policy_id": "PL-001",

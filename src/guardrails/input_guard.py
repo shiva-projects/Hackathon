@@ -67,13 +67,15 @@ from src.prompts.injection_prompts import (
 
 def classify_structural_and_semantic_injection(
     text: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     enable_llm_semantic: bool = True,
 ) -> tuple[bool, Optional[str]]:
     """
     Defense-in-depth: Evaluates structural, delimiter-escaping, and semantic instruction overrides
     beyond pure lexical blocklists (AC-06).
     """
+    from src.context.execution_context import resolve_run_id
+    effective_run_id = resolve_run_id(run_id, required=False)
     if not text:
         return False, None
 
@@ -97,7 +99,7 @@ def classify_structural_and_semantic_injection(
                 from src.llm.client import invoke_with_resilience
                 if len(text.strip()) > 15:
                     prompt = build_injection_prompt(text[:4000])
-                    resp = invoke_with_resilience(prompt, run_id=run_id).strip()
+                    resp = invoke_with_resilience(prompt, run_id=effective_run_id).strip()
                     resp_clean = resp.upper()
                     if resp_clean == "INJECTION" or resp_clean.startswith("INJECTION"):
                         log_agent_action(
@@ -105,7 +107,7 @@ def classify_structural_and_semantic_injection(
                             action="semantic_injection_detected",
                             tool=None,
                             decision="BLOCKED",
-                            run_id=run_id,
+                            run_id=effective_run_id,
                             details={
                                 "prompt_name": "injection_classifier",
                                 "prompt_version": INJECTION_PROMPT_VERSION,
@@ -121,7 +123,7 @@ def classify_structural_and_semantic_injection(
                             action="guardrail_classifier_unparseable",
                             tool=None,
                             decision="FLAGGED_UNPARSEABLE",
-                            run_id=run_id,
+                            run_id=effective_run_id,
                             application_id=None,
                             details={
                                 "raw_response": resp[:200],
@@ -137,7 +139,7 @@ def classify_structural_and_semantic_injection(
                 action="guardrail_classifier_degraded",
                 tool=None,
                 decision="DEGRADED_PASS",
-                run_id=run_id,
+                run_id=effective_run_id,
                 application_id=None,
                 details={
                     "error": str(exc),
@@ -151,10 +153,12 @@ def classify_structural_and_semantic_injection(
 
 async def aclassify_structural_and_semantic_injection(
     text: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     enable_llm_semantic: bool = True,
 ) -> tuple[bool, Optional[str]]:
     """Async variant of classify_structural_and_semantic_injection for non-blocking graph pipelines."""
+    from src.context.execution_context import resolve_run_id
+    effective_run_id = resolve_run_id(run_id, required=False)
     if not text:
         return False, None
 
@@ -175,7 +179,7 @@ async def aclassify_structural_and_semantic_injection(
                 from src.llm.client import ainvoke_with_resilience
                 if len(text.strip()) > 15:
                     prompt = CLASSIFIER_PROMPT_TEMPLATE.format(text=text[:4000])
-                    resp = (await ainvoke_with_resilience(prompt, run_id=run_id)).strip()
+                    resp = (await ainvoke_with_resilience(prompt, run_id=effective_run_id)).strip()
                     resp_clean = resp.upper()
                     if resp_clean == "INJECTION" or resp_clean.startswith("INJECTION"):
                         return True, "SEMANTIC_LLM_INJECTION_DETECTED"
@@ -187,7 +191,7 @@ async def aclassify_structural_and_semantic_injection(
                             action="guardrail_classifier_unparseable",
                             tool=None,
                             decision="FLAGGED_UNPARSEABLE",
-                            run_id=run_id,
+                            run_id=effective_run_id,
                             application_id=None,
                             details={
                                 "raw_response": resp[:200],
@@ -203,7 +207,7 @@ async def aclassify_structural_and_semantic_injection(
                 action="guardrail_classifier_degraded",
                 tool=None,
                 decision="DEGRADED_PASS",
-                run_id=run_id,
+                run_id=effective_run_id,
                 application_id=None,
                 details={
                     "error": str(exc),
@@ -218,7 +222,7 @@ async def aclassify_structural_and_semantic_injection(
 def screen_input(
     raw_text: str,
     current_application_id: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
 ) -> InputGuardResult:
     """
     Evaluates applicant-supplied text before graph processing:
@@ -227,6 +231,8 @@ def screen_input(
     3. Refuses cross-applicant data queries.
     Logs consequential refusals to logs/agent_actions.jsonl.
     """
+    from src.context.execution_context import resolve_run_id
+    effective_run_id = resolve_run_id(run_id, required=False)
     if not raw_text:
         return InputGuardResult(
             is_safe=True,
@@ -248,7 +254,7 @@ def screen_input(
                 action="cross_applicant_attempt_refused",
                 tool=None,
                 decision="REFUSED",
-                run_id=run_id,
+                run_id=effective_run_id,
                 application_id=current_application_id,
                 details={
                     "refusal_reason": "CROSS_APPLICANT_ACCESS",
@@ -270,7 +276,7 @@ def screen_input(
                 action="prompt_injection_detected",
                 tool=None,
                 decision="QUARANTINED",
-                run_id=run_id,
+                run_id=effective_run_id,
                 application_id=current_application_id,
                 details={
                     "refusal_reason": "SECURITY_SENSITIVE_REQUEST",
@@ -295,7 +301,7 @@ def screen_input(
                     action="cross_applicant_attempt_refused",
                     tool=None,
                     decision="REFUSED",
-                    run_id=run_id,
+                    run_id=effective_run_id,
                     application_id=current_application_id,
                     details={
                         "refusal_reason": "CROSS_APPLICANT_ACCESS",
@@ -319,7 +325,7 @@ def screen_input(
 
     # 3. Tertiary defense-in-depth: Structural delimiter escaping and semantic instruction checks
     if not injection_found:
-        semantic_detected, semantic_reason = classify_structural_and_semantic_injection(raw_text, run_id=run_id)
+        semantic_detected, semantic_reason = classify_structural_and_semantic_injection(raw_text, run_id=effective_run_id)
         if semantic_detected:
             injection_found = True
             rejection_reason = semantic_reason or "SEMANTIC_INJECTION_DETECTED"
@@ -333,7 +339,7 @@ def screen_input(
             action="prompt_injection_detected",
             tool=None,
             decision="QUARANTINED",
-            run_id=run_id,
+            run_id=effective_run_id,
             application_id=current_application_id,
             details={"refusal_reason": rejection_reason},
         )
@@ -354,7 +360,7 @@ def screen_input(
 async def ascreen_input(
     raw_text: str,
     current_application_id: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
 ) -> InputGuardResult:
     """
     Asynchronous variant of screen_input for non-blocking graph pipelines.
@@ -364,6 +370,8 @@ async def ascreen_input(
     3. Refuses cross-applicant data queries.
     Logs consequential refusals to logs/agent_actions.jsonl.
     """
+    from src.context.execution_context import resolve_run_id
+    effective_run_id = resolve_run_id(run_id, required=False)
     if not raw_text:
         return InputGuardResult(
             is_safe=True,
@@ -385,7 +393,7 @@ async def ascreen_input(
                 action="cross_applicant_attempt_refused",
                 tool=None,
                 decision="REFUSED",
-                run_id=run_id,
+                run_id=effective_run_id,
                 application_id=current_application_id,
                 details={
                     "refusal_reason": "CROSS_APPLICANT_ACCESS",
@@ -407,7 +415,7 @@ async def ascreen_input(
                 action="prompt_injection_detected",
                 tool=None,
                 decision="QUARANTINED",
-                run_id=run_id,
+                run_id=effective_run_id,
                 application_id=current_application_id,
                 details={
                     "refusal_reason": "SECURITY_SENSITIVE_REQUEST",
@@ -432,7 +440,7 @@ async def ascreen_input(
                     action="cross_applicant_attempt_refused",
                     tool=None,
                     decision="REFUSED",
-                    run_id=run_id,
+                    run_id=effective_run_id,
                     application_id=current_application_id,
                     details={
                         "refusal_reason": "CROSS_APPLICANT_ACCESS",
@@ -456,7 +464,7 @@ async def ascreen_input(
 
     # 3. Tertiary defense-in-depth: Structural delimiter escaping and async semantic instruction checks
     if not injection_found:
-        semantic_detected, semantic_reason = await aclassify_structural_and_semantic_injection(raw_text, run_id=run_id)
+        semantic_detected, semantic_reason = await aclassify_structural_and_semantic_injection(raw_text, run_id=effective_run_id)
         if semantic_detected:
             injection_found = True
             rejection_reason = semantic_reason or "SEMANTIC_INJECTION_DETECTED"
@@ -470,7 +478,7 @@ async def ascreen_input(
             action="prompt_injection_detected",
             tool=None,
             decision="QUARANTINED",
-            run_id=run_id,
+            run_id=effective_run_id,
             application_id=current_application_id,
             details={"refusal_reason": rejection_reason},
         )

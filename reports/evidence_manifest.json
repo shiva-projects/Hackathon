@@ -1,15 +1,15 @@
 {
-  "generated_at": "2026-09-28T15:46:33.441145+00:00",
+  "generated_at": "2026-09-30T17:28:14.646585+00:00",
   "artifacts": {
     "src/graph.py": {
       "exists": true,
-      "size_bytes": 13059,
-      "sha256": "86b014d295f3f36e059397eec58a63a9f27efbbb6622914a2f41b7c41a9442b9"
+      "size_bytes": 15418,
+      "sha256": "4ea8b572c6903d3a8aac3be621dc3aeb4058322c666e925096382021abdb0635"
     },
     "src/state.py": {
       "exists": true,
-      "size_bytes": 7719,
-      "sha256": "0e2b796c32442613d13562820dfd2a4eba3a2a43056d6a1c57f8ebcc564941cc"
+      "size_bytes": 8903,
+      "sha256": "29b1e1cdc2ea3b729bed52686505fdcf26d8bbaab73e9c8ba96486c8636a2a57"
     },
     "mcp_server/server.py": {
       "exists": true,
@@ -18,33 +18,33 @@
     },
     "src/observability/tracing.py": {
       "exists": true,
-      "size_bytes": 19614,
-      "sha256": "085b6580f67a9046be7388c6a3b4d53a2cb0e9175a8b7f2f9e458824b1ca9a34"
+      "size_bytes": 22281,
+      "sha256": "c72ce4fed8dbdef3fd974515c998e6a9193093c29baba9fc4797805d7d9f8434"
     },
     "src/observability/unified_logger.py": {
       "exists": true,
-      "size_bytes": 5303,
-      "sha256": "6d2fd3c75daaadf5ac75bdd6c698a21e64fadf4422c97a989b5d2e02eabb67af"
+      "size_bytes": 9701,
+      "sha256": "8e566b2a9a25c5aa53e7c334f5143322b0f4942dff872a9bc052a3f955a91e16"
     },
     "src/observability/span_sanitizer.py": {
       "exists": true,
-      "size_bytes": 6450,
-      "sha256": "f501bc0aa8b1a18432e0f5f74611fdae662b625a96e998f8556252eeefd14030"
+      "size_bytes": 6508,
+      "sha256": "31422f984e9257f9135acd9f15fab154eedbedb8edd094e135cf2e72b0fcda33"
     },
     "src/guardrails/input_guard.py": {
       "exists": true,
-      "size_bytes": 22204,
-      "sha256": "171aee649b4483b97ce758df6ccbc233a5ed2aa2147192fdb55e5599b535bce6"
+      "size_bytes": 22870,
+      "sha256": "27b286a2af1e0660de46c652b4a7f99827477e0e85fcdeb3ae38c20b15b1e4ec"
     },
     "src/guardrails/output_guard.py": {
       "exists": true,
-      "size_bytes": 7818,
-      "sha256": "a9979fca91c63347a51fe760c07894440e4f880fe6dd5b46bc21d447aa997ae7"
+      "size_bytes": 7963,
+      "sha256": "5c90709322b10fa0413630fb4360f1cfffc89d37cf2abed383a5e5c98f07955d"
     },
     "src/security/authorization.py": {
       "exists": true,
-      "size_bytes": 2634,
-      "sha256": "4d768a150f6f5c2550964ae72ea125c8c6395fee73fa56fcb691f4aca8ea94ef"
+      "size_bytes": 2849,
+      "sha256": "fc0983797083d4fc2c448e6abe489f14b2a39e106ecfbfe61bd900f96eaf89cd"
     },
     "src/memory/short_term.py": {
       "exists": true,
@@ -58,8 +58,8 @@
     },
     "src/tools/rag_tool.py": {
       "exists": true,
-      "size_bytes": 10406,
-      "sha256": "6fcb61f707b4a5b72d57f91ba96dcdeceb6ab19e5af13ad66b4ccf4ea2400cb9"
+      "size_bytes": 14050,
+      "sha256": "83699e359f3d681d3f1bc20edba03784a5f1b8a139f68a17dca8f21582240511"
     },
     "data/policy_corpus/PL_retail_personal_loan_v2.md": {
       "exists": true,
@@ -73,13 +73,13 @@
     },
     "docs/model-card.md": {
       "exists": true,
-      "size_bytes": 5907,
-      "sha256": "b3beaf3838c11ce2dbfd7709c0e8278c1e0a747fed88d097c658a80986455a26"
+      "size_bytes": 6004,
+      "sha256": "f131f99ffd43a0d6d6b7ba19c85d95939fd7760d9ea2964233cd76784c0ef4c4"
     },
     "docs/compliance.md": {
       "exists": true,
-      "size_bytes": 8654,
-      "sha256": "e1ddb94ecebf3b1dbc53fb43bc0dc4f7e5bf2aa495e54ad1ff10264d3c293848"
+      "size_bytes": 8728,
+      "sha256": "4045fcdc98ee58ed66fc0ab9d0d44968eaf42fe78d55567719bfc8031536dc28"
     },
     "docs/output-risk.md": {
       "exists": true,
@@ -113,13 +113,13 @@
     },
     "README.md": {
       "exists": true,
-      "size_bytes": 14124,
-      "sha256": "a359bc2b3a872f2749f3a895382168f8b577de3f8909d83eb2cff5cda54f18f1"
+      "size_bytes": 14654,
+      "sha256": "ba7f7a8b0db76b9aa69173c5e6fee8d8effc0bdc9de768e3a6a33f82aaff3cfd"
     },
     "reports/environment.json": {
       "exists": true,
       "size_bytes": 982,
-      "sha256": "b396f58ce4208e5b62de66a3fd527409a1ee5e8d30e49fd94b1146e68d401d2e"
+      "sha256": "7c7bd4a29b4949d5e840e4ad169b4654dac688fd38f9db5d77892e602abf740c"
     },
     "reports/cost_config.json": {
       "exists": true,
@@ -128,13 +128,14 @@
     },
     ".env.example": {
       "exists": true,
-      "size_bytes": 357,
-      "sha256": "7c37084874724986f47e2ab5d33d191910936d56258e9ef3d936a971fa5d885a"
+      "size_bytes": 444,
+      "sha256": "1c3a9a7d58a900fa12617f3275c66da6d66a7db17370a1ca5a8c0872dea60df7"
     },
     ".gitignore": {
       "exists": true,
-      "size_bytes": 553,
-      "sha256": "7f872dc4feecbc94f0708acb400392222fc890026c4e0061821d6f012024d617"
+      "size_bytes": 4635,
+      "sha256": "bd574b485f784c2bcbbd4ac26f38e3d6062afa4f6b6fc99d020300713c08f1d6"
     }
-  }
+  },
+  "git_commit": "8db2fd0d9b322c754e83bb13628aa5c417df7500"
 }

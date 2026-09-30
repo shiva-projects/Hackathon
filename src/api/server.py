@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # Ensure project root in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -33,7 +33,8 @@ from src.state import create_initial_state, assert_state_invariants
 from src.ingestion.application_loader import load_application_from_dict
 from src.graph import build_loan_copilot_graph
 from src.memory.checkpoint_config import get_session_config
-from src.security.authorization import register_custom_application, AUTHORIZATION_FIXTURE
+from src.security.authorization import register_custom_application, AUTHORIZATION_FIXTURE, authorize
+from src.domain.models import HumanDecision, HumanReviewSubmission
 from src.observability.unified_logger import log_human_review
 from src.observability.span_sanitizer import sanitize_data
 from src.guardrails.output_guard import sanitize_review_reason
@@ -147,11 +148,21 @@ class UnderwriteRequest(BaseModel):
 
 
 class HumanReviewRequest(BaseModel):
-    application_id: str = Field(..., description="Target application ID")
-    reviewer_id: str = Field(..., description="Reviewer employee ID")
-    decision: str = Field(..., description="APPROVE or DECLINE")
-    rationale: str = Field(..., description="Underwriter justification")
+    application_id: str = Field(..., min_length=3, max_length=50, description="Target application ID")
+    reviewer_id: str = Field(..., min_length=1, description="Reviewer employee ID")
+    decision: HumanDecision = Field(..., description="Binding human decision: APPROVE, REFER, or DECLINE")
+    rationale: Optional[str] = Field(None, description="Underwriter justification")
+    review_reason: Optional[str] = Field(None, description="Underwriter justification")
     conditions: Optional[List[str]] = Field(None, description="Optional conditions precedent")
+
+    @model_validator(mode="after")
+    def validate_reason(self):
+        reason = (self.review_reason or self.rationale or "").strip()
+        if not reason or len(reason) < 5:
+            raise ValueError("Human review reason/rationale cannot be empty and must be at least 5 characters.")
+        self.review_reason = reason
+        self.rationale = reason
+        return self
 
 
 class HealthResponse(BaseModel):
@@ -355,8 +366,8 @@ def record_human_review(
     principal: Optional[Principal] = Depends(get_current_principal),
 ):
     """
-    Records a binding human underwriter decision (approve/decline) for an application
-    that required human referral. Enforces role authentication and strict validation.
+    Records a binding human underwriter decision (APPROVE, REFER, DECLINE) for an application
+    that required human referral. Enforces role authentication, application authorization, and strict schema validation.
     """
     app_id = sanitize_app_id(payload.application_id)
     reviewer_id = principal.id if principal else payload.reviewer_id
@@ -369,17 +380,27 @@ def record_human_review(
             detail=f"Role '{reviewer_role}' unauthorized to execute human review. Requires senior_underwriter or loan_officer."
         )
 
-    # Validate decision value
-    normalized_decision = payload.decision.upper()
-    if normalized_decision in {"APPROVED", "APPROVE"}:
-        decision_val = "APPROVE"
-    elif normalized_decision in {"DECLINED", "DECLINE"}:
-        decision_val = "DECLINE"
-    else:
+    # Enforce application authorization via shared policy
+    auth_status = authorize(reviewer_id, app_id)
+    if auth_status != "AUTHORIZED":
         raise HTTPException(
-            status_code=422,
-            detail=f"Invalid decision '{payload.decision}'. Must be 'APPROVE' or 'DECLINE'."
+            status_code=403,
+            detail=f"Reviewer '{reviewer_id}' is unauthorized for application '{app_id}'."
         )
+
+    # Validate against canonical domain schema
+    try:
+        submission = HumanReviewSubmission(
+            application_id=app_id,
+            reviewer_id=reviewer_id,
+            decision=payload.decision,
+            review_reason=payload.review_reason or payload.rationale or "",
+            conditions=payload.conditions,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Human review validation error: {str(exc)}")
+
+    decision_val = submission.decision.value
 
     out_file = get_safe_results_path(app_id)
     if not out_file.exists():
@@ -394,16 +415,17 @@ def record_human_review(
             detail=f"Application {app_id} does not require human review (ai_recommendation={data.get('ai_recommendation')})"
         )
 
-    clean_rationale = sanitize_review_reason(payload.rationale)
-    review_id = f"REV-{app_id}-{int(datetime.now().timestamp())}"
+    clean_rationale = sanitize_review_reason(submission.review_reason)
+    review_id = f"REV-{app_id}-{int(datetime.now().timestamp()*1000)}-{uuid.uuid4().hex[:4].upper()}"
+    run_id = data.get("run_id") or f"RUN-REV-{uuid.uuid4().hex[:8].upper()}"
 
     data["final_decision"] = decision_val
     data["review_id"] = review_id
     data["reviewed_by"] = reviewer_id
     data["reviewed_at"] = datetime.now(timezone.utc).isoformat()
     data["human_rationale"] = clean_rationale
-    if payload.conditions:
-        data["conditions"] = payload.conditions
+    if submission.conditions:
+        data["conditions"] = submission.conditions
 
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -416,7 +438,8 @@ def record_human_review(
         ai_recommendation=data.get("ai_recommendation"),
         final_decision=decision_val,
         review_reason=clean_rationale,
-        run_id=data.get("run_id", "RUN-API-REV"),
+        run_id=run_id,
+        session_id=data.get("session_id"),
     )
 
     return JSONResponse(content={

@@ -11,11 +11,15 @@ from src.state import LoanState, GEMINI_FALLBACK_RATIONALE
 from src.observability.unified_logger import log_agent_action
 
 
-def handle_mcp_failure(state: LoanState, error_message: str, run_id: str = "default_run") -> LoanState:
+def handle_mcp_failure(state: LoanState, error_message: str, run_id: Optional[str] = None) -> LoanState:
     """
     Handles MCP tool outage gracefully (Section 14.7).
     Never defaults to REFER; sets UNABLE_TO_COMPLETE.
     """
+    effective_run_id = run_id or state.get("run_id")
+    if not effective_run_id or effective_run_id == "default_run":
+        raise ValueError("handle_mcp_failure requires canonical run_id in state or argument")
+
     state["decision_status"] = "UNABLE_TO_COMPLETE"
     state["unable_reason"] = "MCP_UNAVAILABLE"
     state["ai_recommendation"] = None
@@ -27,18 +31,22 @@ def handle_mcp_failure(state: LoanState, error_message: str, run_id: str = "defa
         action="mcp_failure_fallback",
         tool="mcp_tool",
         decision="UNABLE_TO_COMPLETE",
-        run_id=run_id,
+        run_id=effective_run_id,
         application_id=state.get("application_id"),
         details={"error": error_message, "unable_reason": "MCP_UNAVAILABLE"},
     )
     return state
 
 
-def handle_gemini_failure(state: LoanState, error_message: str, run_id: str = "default_run") -> LoanState:
+def handle_gemini_failure(state: LoanState, error_message: str, run_id: Optional[str] = None) -> LoanState:
     """
     Handles Gemini outage during rationale generation (Section 14.17).
     Deterministic recommendation survives; rationale set to exact named constant.
     """
+    effective_run_id = run_id or state.get("run_id")
+    if not effective_run_id or effective_run_id == "default_run":
+        raise ValueError("handle_gemini_failure requires canonical run_id in state or argument")
+
     state["rationale"] = GEMINI_FALLBACK_RATIONALE
     # decision_status and ai_recommendation remain untouched from domain/decisions.py
 
@@ -47,7 +55,7 @@ def handle_gemini_failure(state: LoanState, error_message: str, run_id: str = "d
         action="gemini_rationale_fallback",
         tool="gemini_model",
         decision="DEGRADED_RATIONALE",
-        run_id=run_id,
+        run_id=effective_run_id,
         application_id=state.get("application_id"),
         details={"error": error_message, "fallback_applied": True},
     )

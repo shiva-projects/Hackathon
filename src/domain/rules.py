@@ -96,7 +96,7 @@ def evaluate_policy_rules(
                     actual_value=float(requested_amount),
                     operator=operator,
                     message=f"Requested amount {requested_amount} {'is within' if passed else 'exceeds'} maximum {threshold}",
-                    is_mandatory_eligibility=False,
+                    is_mandatory_eligibility=True,
                     requires_human_review=not passed,
                 )
             )
@@ -104,7 +104,7 @@ def evaluate_policy_rules(
                 risk_flags.append({
                     "rule_id": rule_id,
                     "flag": "LOAN_AMOUNT_EXCEEDED",
-                    "severity": "HIGH",
+                    "severity": "CRITICAL",
                     "message": f"Requested amount {requested_amount} exceeds maximum allowed {threshold}",
                 })
 

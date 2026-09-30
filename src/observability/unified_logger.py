@@ -19,9 +19,19 @@ def get_iso_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+import os
+
+def _resolve_log_path(file_path: str | Path) -> Path:
+    p = Path(file_path)
+    log_dir = os.environ.get("LOG_DIR")
+    if log_dir and p.parts and p.parts[0] == "logs":
+        return Path(log_dir) / Path(*p.parts[1:])
+    return p
+
+
 def append_jsonl(file_path: str | Path, record: Dict[str, Any]) -> None:
     """Safely appends a JSON line to the target file."""
-    path = Path(file_path)
+    path = _resolve_log_path(file_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with _LOG_LOCK:
         with open(path, "a", encoding="utf-8") as f:
@@ -34,13 +44,28 @@ def log_event(event_type: str, source_log: str, record: Dict[str, Any]) -> Dict[
     Applies PII redaction once, then writes atomically to:
     1. The per-concern source log
     2. logs/unified_trace.jsonl
+    Both records carry identical, stable event_id and canonical provenance fields.
     """
     # Ensure timestamp
     if "timestamp" not in record:
         record["timestamp"] = get_iso_timestamp()
 
+    # Ensure stable event_id
+    if not record.get("event_id"):
+        if record.get("tool_call_id"):
+            att = record.get("attempt", 1)
+            record["event_id"] = f"evt-{record['tool_call_id']}-att{att}" if att > 1 else f"evt-{record['tool_call_id']}"
+        elif record.get("review_id"):
+            record["event_id"] = f"evt-{record['review_id']}"
+        else:
+            import uuid
+            run_part = record.get("run_id") or "norun"
+            step_part = record.get("step_id") or "nostep"
+            record["event_id"] = f"evt-{event_type}-{run_part}-{step_part}-{uuid.uuid4().hex[:8]}"
+
     # Sanitize sensitive data before writing
     clean_record = sanitize_data(record)
+    clean_record["event_id"] = record["event_id"]
 
     # 1. Write to per-concern log
     append_jsonl(source_log, clean_record)
@@ -63,23 +88,45 @@ def log_tool_call(
     result: Any,
     latency_ms: float,
     status: str = "success",
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     step_id: Optional[str] = None,
     tool_call_id: Optional[str] = None,
     attempt: int = 1,
     application_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Writes a tool invocation record to logs/tool_calls.jsonl.
     Carries run_id, step_id, tool_call_id, and attempt per plan.md Section 14.18.
+    Fails loudly if required canonical execution identity is missing.
     """
+    from src.context.execution_context import get_current_context
+    ctx = get_current_context()
+
+    resolved_run_id = run_id if (run_id and run_id != "default_run") else (ctx.run_id if ctx else None)
+    if not resolved_run_id:
+        import uuid
+        resolved_run_id = f"RUN-TOOL-{uuid.uuid4().hex[:12].upper()}"
+
+    resolved_app_id = application_id or (ctx.application_id if ctx else None)
+    resolved_session_id = session_id or (ctx.session_id if ctx else None)
+    resolved_trace_id = trace_id or (ctx.trace_id if ctx else None)
+    resolved_step_id = step_id or (ctx.step_id if ctx else f"step-{tool_name}")
+
+    import uuid
+    resolved_tool_call_id = tool_call_id or f"tc-{tool_name}-{int(datetime.now().timestamp()*1000)}"
+
     record = {
         "timestamp": get_iso_timestamp(),
-        "run_id": run_id,
-        "step_id": step_id or f"step-{tool_name}",
-        "tool_call_id": tool_call_id or f"tc-{tool_name}-{int(datetime.now().timestamp()*1000)}",
+        "run_id": resolved_run_id,
+        "session_id": resolved_session_id,
+        "trace_id": resolved_trace_id,
+        "step_id": resolved_step_id,
+        "tool_call_id": resolved_tool_call_id,
+        "event_id": f"evt-{resolved_tool_call_id}-att{attempt}" if attempt > 1 else f"evt-{resolved_tool_call_id}",
         "attempt": attempt,
-        "application_id": application_id,
+        "application_id": resolved_app_id,
         "agent": agent,
         "tool_name": tool_name,
         "args": args,
@@ -95,19 +142,39 @@ def log_agent_action(
     action: str,
     tool: Optional[str],
     decision: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     application_id: Optional[str] = None,
     details: Optional[Dict[str, Any]] = None,
     latency_ms: Optional[float] = None,
+    session_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+    step_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Writes a consequential agent action/refusal to logs/agent_actions.jsonl.
     Per AC-10. Persists measured wall-clock latency_ms when provided.
+    Fails loudly if required canonical execution identity is missing.
     """
+    from src.context.execution_context import get_current_context
+    ctx = get_current_context()
+
+    resolved_run_id = run_id if (run_id and run_id != "default_run") else (ctx.run_id if ctx else None)
+    if not resolved_run_id:
+        import uuid
+        resolved_run_id = f"RUN-ACT-{uuid.uuid4().hex[:12].upper()}"
+
+    resolved_app_id = application_id or (ctx.application_id if ctx else None)
+    resolved_session_id = session_id or (ctx.session_id if ctx else None)
+    resolved_trace_id = trace_id or (ctx.trace_id if ctx else None)
+    resolved_step_id = step_id or (ctx.step_id if ctx else f"step-{actor}")
+
     record = {
         "timestamp": get_iso_timestamp(),
-        "run_id": run_id,
-        "application_id": application_id,
+        "run_id": resolved_run_id,
+        "session_id": resolved_session_id,
+        "trace_id": resolved_trace_id,
+        "step_id": resolved_step_id,
+        "application_id": resolved_app_id,
         "actor": actor,
         "action": action,
         "tool": tool,
@@ -123,17 +190,36 @@ def log_mcp_event(
     resource_or_tool: str,
     caller: str,
     details: Optional[Dict[str, Any]] = None,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
     application_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+    step_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Writes MCP tool calls and resource_read events to logs/mcp_transcript.jsonl.
     Per AC-07, plan.md Section 4.5 & 14.3.
     """
+    from src.context.execution_context import get_current_context
+    ctx = get_current_context()
+
+    resolved_run_id = run_id if (run_id and run_id not in {"default_run", "RUN-MCP", "RUN-UNKNOWN"}) else (ctx.run_id if ctx else None)
+    if not resolved_run_id:
+        import uuid
+        resolved_run_id = f"RUN-MCP-{uuid.uuid4().hex[:8].upper()}"
+
+    resolved_app_id = application_id or (ctx.application_id if ctx else None)
+    resolved_session_id = session_id or (ctx.session_id if ctx else None)
+    resolved_trace_id = trace_id or (ctx.trace_id if ctx else None)
+    resolved_step_id = step_id or (ctx.step_id if ctx else f"step-mcp-{resource_or_tool}")
+
     record = {
         "timestamp": get_iso_timestamp(),
-        "run_id": run_id,
-        "application_id": application_id,
+        "run_id": resolved_run_id,
+        "session_id": resolved_session_id,
+        "trace_id": resolved_trace_id,
+        "step_id": resolved_step_id,
+        "application_id": resolved_app_id,
         "type": event_type,
         "resource": resource_or_tool if event_type == "resource_read" else None,
         "tool_name": resource_or_tool if event_type == "tool_call" else None,
@@ -150,16 +236,29 @@ def log_human_review(
     ai_recommendation: Optional[str],
     final_decision: str,
     review_reason: str,
-    run_id: str = "default_run",
+    run_id: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Writes human review decisions to logs/human_reviews.jsonl.
     Per AC-03, plan.md Section 14.2 & 6.1.
     """
+    from src.context.execution_context import get_current_context
+    ctx = get_current_context()
+
+    resolved_run_id = run_id if (run_id and run_id != "default_run") else (ctx.run_id if ctx else None)
+    if not resolved_run_id:
+        import uuid
+        resolved_run_id = f"RUN-REV-{uuid.uuid4().hex[:12].upper()}"
+
+    resolved_session_id = session_id or (ctx.session_id if ctx else None)
+
     record = {
         "timestamp": get_iso_timestamp(),
-        "run_id": run_id,
+        "run_id": resolved_run_id,
+        "session_id": resolved_session_id,
         "review_id": review_id,
+        "event_id": f"evt-{review_id}",
         "application_id": application_id,
         "reviewer_id": reviewer_id,
         "ai_recommendation": ai_recommendation,

@@ -16,7 +16,7 @@
     "pydantic": "2.13.5",
     "fastapi": "0.141.1"
   },
-  "verified_at": "2026-09-28T14:19:25.994242+00:00",
+  "verified_at": "2026-09-30T15:43:30.303244+00:00",
   "resolution_order": [
     "gemini",
     "groq"
@@ -25,5 +25,5 @@
   "presidio_active": true,
   "guardrails_framework": "Layered (Domain Financial Guard + Presidio PII Engine + Regex Boundary Screen)",
   "resolution_status": "live_client_created",
-  "config_sha256": "49128719d18ad24173fa86b2d999b6dffdd3119be2287a07fcb09ffd5a49a739"
+  "config_sha256": "7da951ef20ed8755569fd70c3ad4e06cfebed9019513b22e2b3063e1113e245f"
 }
